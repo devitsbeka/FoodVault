@@ -243,13 +243,10 @@ export const mealPlanSeats = pgTable("meal_plan_seats", {
 
 export const mealSeatAssignments = pgTable("meal_seat_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  mealPlanId: varchar("meal_plan_id").notNull().references(() => mealPlans.id, { onDelete: 'cascade' }),
-  seatNumber: integer("seat_number").notNull(), // 1-6
+  seatId: varchar("seat_id").notNull().unique().references(() => mealPlanSeats.id, { onDelete: 'cascade' }),
   recipeId: varchar("recipe_id").notNull().references(() => recipes.id),
   assignedAt: timestamp("assigned_at").defaultNow(),
-}, (table) => [
-  unique().on(table.mealPlanId, table.seatNumber)
-]);
+});
 
 // ============= RELATIONS =============
 
@@ -265,6 +262,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   notifications: many(notifications),
   assignedShoppingItems: many(shoppingListItems),
   reviewQueue: many(inventoryReviewQueue),
+  recipeInteractions: many(recipeInteractions),
+  mealPlanSeats: many(mealPlanSeats),
 }));
 
 export const familiesRelations = relations(families, ({ one, many }) => ({
@@ -291,6 +290,8 @@ export const familyMembersRelations = relations(familyMembers, ({ one }) => ({
 export const recipesRelations = relations(recipes, ({ many }) => ({
   ratings: many(recipeRatings),
   mealPlans: many(mealPlans),
+  interactions: many(recipeInteractions),
+  seatAssignments: many(mealSeatAssignments),
 }));
 
 export const recipeRatingsRelations = relations(recipeRatings, ({ one }) => ({
@@ -318,6 +319,8 @@ export const mealPlansRelations = relations(mealPlans, ({ one, many }) => ({
     references: [recipes.id],
   }),
   votes: many(mealVotes),
+  seats: many(mealPlanSeats),
+  seatAssignments: many(mealSeatAssignments),
 }));
 
 export const mealVotesRelations = relations(mealVotes, ({ one }) => ({
@@ -377,6 +380,43 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   recipient: one(users, {
     fields: [notifications.recipientUserId],
     references: [users.id],
+  }),
+}));
+
+export const recipeInteractionsRelations = relations(recipeInteractions, ({ one }) => ({
+  user: one(users, {
+    fields: [recipeInteractions.userId],
+    references: [users.id],
+  }),
+  recipe: one(recipes, {
+    fields: [recipeInteractions.recipeId],
+    references: [recipes.id],
+  }),
+}));
+
+export const mealPlanSeatsRelations = relations(mealPlanSeats, ({ one }) => ({
+  mealPlan: one(mealPlans, {
+    fields: [mealPlanSeats.mealPlanId],
+    references: [mealPlans.id],
+  }),
+  assignedUser: one(users, {
+    fields: [mealPlanSeats.assignedUserId],
+    references: [users.id],
+  }),
+  assignment: one(mealSeatAssignments, {
+    fields: [mealPlanSeats.id],
+    references: [mealSeatAssignments.seatId],
+  }),
+}));
+
+export const mealSeatAssignmentsRelations = relations(mealSeatAssignments, ({ one }) => ({
+  seat: one(mealPlanSeats, {
+    fields: [mealSeatAssignments.seatId],
+    references: [mealPlanSeats.id],
+  }),
+  recipe: one(recipes, {
+    fields: [mealSeatAssignments.recipeId],
+    references: [recipes.id],
   }),
 }));
 
@@ -477,3 +517,24 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
 });
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
+
+export const insertRecipeInteractionSchema = createInsertSchema(recipeInteractions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertRecipeInteraction = z.infer<typeof insertRecipeInteractionSchema>;
+export type RecipeInteraction = typeof recipeInteractions.$inferSelect;
+
+export const insertMealPlanSeatSchema = createInsertSchema(mealPlanSeats).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertMealPlanSeat = z.infer<typeof insertMealPlanSeatSchema>;
+export type MealPlanSeat = typeof mealPlanSeats.$inferSelect;
+
+export const insertMealSeatAssignmentSchema = createInsertSchema(mealSeatAssignments).omit({
+  id: true,
+  assignedAt: true,
+});
+export type InsertMealSeatAssignment = z.infer<typeof insertMealSeatAssignmentSchema>;
+export type MealSeatAssignment = typeof mealSeatAssignments.$inferSelect;
