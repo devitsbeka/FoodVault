@@ -65,18 +65,22 @@ export function RecipePickerModal({
 
   const dietType = getDietTypeFilter();
 
+  // Build query params for API request
+  const queryParams = new URLSearchParams();
+  if (debouncedSearch) queryParams.set('search', debouncedSearch);
+  if (dietType) queryParams.set('dietType', dietType);
+  if (combinedDietaryRestrictions.length > 0) {
+    queryParams.set('restrictions', combinedDietaryRestrictions.join(','));
+  }
+  queryParams.set('limit', '30');
+
+  const queryString = queryParams.toString();
+  const apiUrl = `/api/recipes${queryString ? `?${queryString}` : ''}`;
+
   // Fetch recipes filtered by backend using dietary restrictions
-  // Backend filters by tags for DB recipes, diet type for external API recipes
+  // Backend filters by tags for DB recipes, excludes external recipes when restrictions present
   const { data: recipes = [], isLoading } = useQuery<Recipe[]>({
-    queryKey: [
-      "/api/recipes",
-      {
-        search: debouncedSearch,
-        dietType,
-        restrictions: combinedDietaryRestrictions.join(','),
-        limit: 30,
-      },
-    ],
+    queryKey: [apiUrl],
     enabled: open,
   });
 
