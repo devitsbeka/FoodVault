@@ -106,10 +106,12 @@ export const kitchenInventory = pgTable("kitchen_inventory", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
   name: varchar("name").notNull(),
+  normalizedName: varchar("normalized_name"), // for consistent matching
   category: inventoryCategoryEnum("category").default('fridge'),
   quantity: decimal("quantity").default("1"),
   unit: varchar("unit"), // cup, lb, oz, etc.
   expirationDate: timestamp("expiration_date"),
+  sourceItemId: varchar("source_item_id"), // link to shopping list item
   addedAt: timestamp("added_at").defaultNow(),
 });
 
@@ -150,10 +152,65 @@ export const chatMessages = pgTable("chat_messages", {
 export const shoppingLists = pgTable("shopping_lists", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
+  familyId: varchar("family_id").references(() => families.id, { onDelete: 'cascade' }),
   name: varchar("name").default("Shopping List"),
-  items: jsonb("items").notNull(), // [{name, quantity, unit, checked}]
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const itemStatusEnum = pgEnum('item_status', ['active', 'bought', 'pending_review']);
+
+export const shoppingListItems = pgTable("shopping_list_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  listId: varchar("list_id").notNull().references(() => shoppingLists.id, { onDelete: 'cascade' }),
+  name: varchar("name").notNull(),
+  normalizedName: varchar("normalized_name"),
+  quantity: varchar("quantity").default("1"),
+  unit: varchar("unit"),
+  status: itemStatusEnum("status").default('active'),
+  assignedToUserId: varchar("assigned_to_user_id").references(() => users.id),
+  addedByUserId: varchar("added_by_user_id").references(() => users.id),
+  addedAt: timestamp("added_at").defaultNow(),
+  boughtAt: timestamp("bought_at"),
+});
+
+// ============= PENDING REVIEW QUEUE =============
+
+export const reviewStatusEnum = pgEnum('review_status', ['pending', 'approved', 'rejected']);
+
+export const inventoryReviewQueue = pgTable("inventory_review_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceItemId: varchar("source_item_id").references(() => shoppingListItems.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: varchar("name").notNull(),
+  normalizedName: varchar("normalized_name"),
+  quantity: varchar("quantity"),
+  unit: varchar("unit"),
+  categoryGuess: inventoryCategoryEnum("category_guess").default('fridge'),
+  status: reviewStatusEnum("status").default('pending'),
+  reviewerId: varchar("reviewer_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============= NOTIFICATIONS =============
+
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'shopping_assignment',
+  'shopping_bought',
+  'review_required',
+  'meal_vote',
+]);
+
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  recipientUserId: varchar("recipient_user_id").notNull().references(() => users.id),
+  type: notificationTypeEnum("type").notNull(),
+  title: varchar("title").notNull(),
+  message: text("message"),
+  payload: jsonb("payload"), // {itemId, itemName, assignerId, etc}
+  createdAt: timestamp("created_at").defaultNow(),
+  readAt: timestamp("read_at"),
 });
 
 // ============= RELATIONS =============
@@ -167,6 +224,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   chatMessages: many(chatMessages),
   shoppingLists: many(shoppingLists),
   createdFamilies: many(families),
+  notifications: many(notifications),
+  assignedShoppingItems: many(shoppingListItems),
+  reviewQueue: many(inventoryReviewQueue),
 }));
 
 export const familiesRelations = relations(families, ({ one, many }) => ({
@@ -176,6 +236,7 @@ export const familiesRelations = relations(families, ({ one, many }) => ({
   }),
   members: many(familyMembers),
   mealPlans: many(mealPlans),
+  shoppingLists: many(shoppingLists),
 }));
 
 export const familyMembersRelations = relations(familyMembers, ({ one }) => ({
@@ -228,6 +289,55 @@ export const mealVotesRelations = relations(mealVotes, ({ one }) => ({
   }),
   user: one(users, {
     fields: [mealVotes.userId],
+    references: [users.id],
+  }),
+}));
+
+export const shoppingListsRelations = relations(shoppingLists, ({ one, many }) => ({
+  owner: one(users, {
+    fields: [shoppingLists.userId],
+    references: [users.id],
+  }),
+  family: one(families, {
+    fields: [shoppingLists.familyId],
+    references: [families.id],
+  }),
+  items: many(shoppingListItems),
+}));
+
+export const shoppingListItemsRelations = relations(shoppingListItems, ({ one }) => ({
+  list: one(shoppingLists, {
+    fields: [shoppingListItems.listId],
+    references: [shoppingLists.id],
+  }),
+  assignedTo: one(users, {
+    fields: [shoppingListItems.assignedToUserId],
+    references: [users.id],
+  }),
+  addedBy: one(users, {
+    fields: [shoppingListItems.addedByUserId],
+    references: [users.id],
+  }),
+}));
+
+export const inventoryReviewQueueRelations = relations(inventoryReviewQueue, ({ one }) => ({
+  user: one(users, {
+    fields: [inventoryReviewQueue.userId],
+    references: [users.id],
+  }),
+  reviewer: one(users, {
+    fields: [inventoryReviewQueue.reviewerId],
+    references: [users.id],
+  }),
+  sourceItem: one(shoppingListItems, {
+    fields: [inventoryReviewQueue.sourceItemId],
+    references: [shoppingListItems.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  recipient: one(users, {
+    fields: [notifications.recipientUserId],
     references: [users.id],
   }),
 }));
@@ -297,3 +407,27 @@ export const insertShoppingListSchema = createInsertSchema(shoppingLists).omit({
 });
 export type InsertShoppingList = z.infer<typeof insertShoppingListSchema>;
 export type ShoppingList = typeof shoppingLists.$inferSelect;
+
+export const insertShoppingListItemSchema = createInsertSchema(shoppingListItems).omit({
+  id: true,
+  addedAt: true,
+  boughtAt: true,
+});
+export type InsertShoppingListItem = z.infer<typeof insertShoppingListItemSchema>;
+export type ShoppingListItem = typeof shoppingListItems.$inferSelect;
+
+export const insertInventoryReviewQueueSchema = createInsertSchema(inventoryReviewQueue).omit({
+  id: true,
+  createdAt: true,
+  reviewedAt: true,
+});
+export type InsertInventoryReviewQueue = z.infer<typeof insertInventoryReviewQueueSchema>;
+export type InventoryReviewQueue = typeof inventoryReviewQueue.$inferSelect;
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+  readAt: true,
+});
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
