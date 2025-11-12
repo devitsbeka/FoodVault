@@ -5,7 +5,7 @@ import { isAuthenticated, optionalAuth } from "./replitAuth";
 import { getChatCompletion } from "./openai";
 import { insertKitchenInventorySchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
-import { searchSpoonacularRecipes, getSpoonacularRecipeById, getIngredientImageMemoized } from "./spoonacularApi";
+import { searchSpoonacularRecipes, getSpoonacularRecipeById, getIngredientImageMemoized, getIngredientSuggestionsMemoized } from "./spoonacularApi";
 import { normalizeIngredientName } from "./normalizationService";
 
 // Shared error response helper
@@ -213,6 +213,27 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Error getting recipes:", error);
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Get ingredient suggestions from Spoonacular autocomplete
+  app.get("/api/ingredient-suggestions", async (req, res) => {
+    try {
+      const { query } = req.query;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: "Query parameter is required" });
+      }
+
+      if (query.length < 2) {
+        return res.json([]);
+      }
+
+      const suggestions = await getIngredientSuggestionsMemoized(query);
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error fetching ingredient suggestions:", error);
+      res.status(500).json({ error: "Failed to fetch ingredient suggestions" });
     }
   });
 

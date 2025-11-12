@@ -255,6 +255,46 @@ interface IngredientAutocomplete {
   image: string;
 }
 
+export interface IngredientSuggestion {
+  id: number;
+  name: string;
+  imageUrl: string | null;
+}
+
+// Get ingredient autocomplete suggestions
+export async function getIngredientSuggestions(query: string): Promise<IngredientSuggestion[]> {
+  if (!SPOONACULAR_API_KEY || !query) {
+    return [];
+  }
+
+  try {
+    const url = `${SPOONACULAR_FOOD_URL}/autocomplete?apiKey=${SPOONACULAR_API_KEY}&query=${encodeURIComponent(query)}&number=10&metaInformation=true`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.error(`Spoonacular API error: ${response.status} ${response.statusText}`);
+      return [];
+    }
+
+    const results: IngredientAutocomplete[] = await response.json();
+    
+    return results.map(item => ({
+      id: item.id,
+      name: item.name,
+      imageUrl: item.image ? `https://spoonacular.com/cdn/ingredients_100x100/${item.image}` : null,
+    }));
+  } catch (error) {
+    console.error("Error fetching ingredient suggestions from Spoonacular:", error);
+    return [];
+  }
+}
+
+// Memoized version with 5 minute cache
+export const getIngredientSuggestionsMemoized = memoizee(getIngredientSuggestions, {
+  maxAge: 5 * 60 * 1000, // 5 minutes
+  promise: true,
+});
+
 // Get ingredient image from Spoonacular autocomplete
 export async function getIngredientImage(ingredientName: string): Promise<string | null> {
   if (!SPOONACULAR_API_KEY || !ingredientName) {

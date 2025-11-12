@@ -7,22 +7,32 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Calendar, X, Package, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Calendar, X, Package, CheckCircle2, Search } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { IngredientImage } from "@/components/IngredientImage";
 import type { KitchenInventory, InsertKitchenInventory, InventoryReviewQueue } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Category = "fridge" | "pantry" | "other" | "pending";
+
+interface IngredientSuggestion {
+  id: number;
+  name: string;
+  imageUrl: string | null;
+}
 
 export default function MyKitchen() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<Category>("fridge");
-  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [open, setOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     name: "",
+    imageUrl: null as string | null,
     quantity: "1",
     unit: "",
     expirationDate: "",
@@ -36,14 +46,20 @@ export default function MyKitchen() {
     queryKey: ["/api/inventory-review-queue"],
   });
 
+  // Fetch ingredient suggestions from Spoonacular
+  const { data: suggestions = [], isLoading: suggestionsLoading } = useQuery<IngredientSuggestion[]>({
+    queryKey: [`/api/ingredient-suggestions?query=${searchQuery}`],
+    enabled: searchQuery.length >= 2,
+  });
+
   const addMutation = useMutation({
     mutationFn: async (item: InsertKitchenInventory) => {
       await apiRequest("POST", "/api/kitchen-inventory", item);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/kitchen-inventory"] });
-      setNewItem({ name: "", quantity: "1", unit: "", expirationDate: "" });
-      setIsAddingItem(false);
+      setNewItem({ name: "", imageUrl: null, quantity: "1", unit: "", expirationDate: "" });
+      setSearchQuery("");
       toast({
         title: "Item added",
         description: "Your ingredient has been added to the kitchen.",
@@ -190,7 +206,18 @@ export default function MyKitchen() {
       quantity: newItem.quantity,
       unit: newItem.unit || null,
       expirationDate: newItem.expirationDate ? new Date(newItem.expirationDate) : null,
+      imageUrl: newItem.imageUrl,
     });
+  };
+
+  const handleSelectIngredient = (suggestion: IngredientSuggestion) => {
+    setNewItem({
+      ...newItem,
+      name: suggestion.name,
+      imageUrl: suggestion.imageUrl,
+    });
+    setSearchQuery(suggestion.name);
+    setOpen(false);
   };
 
   const filteredInventory = inventory?.filter(item => item.category === selectedCategory) || [];
@@ -211,87 +238,113 @@ export default function MyKitchen() {
             <CardContent className="p-6">
               <h2 className="text-title-2 mb-4">Add Ingredients</h2>
               
-              {!isAddingItem ? (
-                <Button 
-                  onClick={() => setIsAddingItem(true)} 
-                  className="w-full gap-2"
-                  data-testid="button-start-add-item"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add New Item
-                </Button>
-              ) : (
-                <div className="space-y-4">
+              <div className="space-y-4">
+                {/* Ingredient Autocomplete */}
+                <div>
+                  <Label htmlFor="ingredient-search">Search Ingredient</Label>
+                  <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={open}
+                        className="w-full justify-between"
+                        data-testid="button-ingredient-search"
+                      >
+                        {newItem.name || "Search for an ingredient..."}
+                        <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput 
+                          placeholder="Type to search ingredients..." 
+                          value={searchQuery}
+                          onValueChange={setSearchQuery}
+                          data-testid="input-ingredient-search"
+                        />
+                        <CommandList>
+                          {searchQuery.length < 2 ? (
+                            <CommandEmpty>Type at least 2 characters to search</CommandEmpty>
+                          ) : suggestionsLoading ? (
+                            <CommandEmpty>Loading suggestions...</CommandEmpty>
+                          ) : suggestions.length === 0 ? (
+                            <CommandEmpty>No ingredients found</CommandEmpty>
+                          ) : (
+                            <CommandGroup>
+                              {suggestions.map((suggestion) => (
+                                <CommandItem
+                                  key={suggestion.id}
+                                  value={suggestion.name}
+                                  onSelect={() => handleSelectIngredient(suggestion)}
+                                  data-testid={`suggestion-${suggestion.id}`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {suggestion.imageUrl && (
+                                      <img 
+                                        src={suggestion.imageUrl} 
+                                        alt={suggestion.name}
+                                        className="w-8 h-8 rounded object-cover"
+                                      />
+                                    )}
+                                    <span>{suggestion.name}</span>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="name">Item Name</Label>
+                    <Label htmlFor="quantity">Quantity</Label>
                     <Input
-                      id="name"
-                      placeholder="e.g., Tomatoes, Chicken, Milk"
-                      value={newItem.name}
-                      onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-                      autoFocus
-                      data-testid="input-item-name"
+                      id="quantity"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={newItem.quantity}
+                      onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                      data-testid="input-quantity"
                     />
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="quantity">Quantity</Label>
-                      <Input
-                        id="quantity"
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={newItem.quantity}
-                        onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-                        data-testid="input-quantity"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="unit">Unit</Label>
-                      <Input
-                        id="unit"
-                        placeholder="lbs, oz, pcs"
-                        value={newItem.unit}
-                        onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-                        data-testid="input-unit"
-                      />
-                    </div>
-                  </div>
-                  
                   <div>
-                    <Label htmlFor="expiration">Expiration Date (Optional)</Label>
+                    <Label htmlFor="unit">Unit</Label>
                     <Input
-                      id="expiration"
-                      type="date"
-                      value={newItem.expirationDate}
-                      onChange={(e) => setNewItem({ ...newItem, expirationDate: e.target.value })}
-                      data-testid="input-expiration"
+                      id="unit"
+                      placeholder="lbs, oz, pcs"
+                      value={newItem.unit}
+                      onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                      data-testid="input-unit"
                     />
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={handleAddItem} 
-                      className="flex-1"
-                      disabled={addMutation.isPending}
-                      data-testid="button-save-item"
-                    >
-                      {addMutation.isPending ? "Adding..." : `Add to ${selectedCategory}`}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        setIsAddingItem(false);
-                        setNewItem({ name: "", quantity: "1", unit: "", expirationDate: "" });
-                      }}
-                      data-testid="button-cancel-add"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
-              )}
+                
+                <div>
+                  <Label htmlFor="expiration">Expiration Date (Optional)</Label>
+                  <Input
+                    id="expiration"
+                    type="date"
+                    value={newItem.expirationDate}
+                    onChange={(e) => setNewItem({ ...newItem, expirationDate: e.target.value })}
+                    data-testid="input-expiration"
+                  />
+                </div>
+                
+                <Button 
+                  onClick={handleAddItem} 
+                  className="w-full gap-2"
+                  disabled={addMutation.isPending || !newItem.name}
+                  data-testid="button-save-item"
+                >
+                  <Plus className="w-4 h-4" />
+                  {addMutation.isPending ? "Adding..." : `Add to ${selectedCategory}`}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -441,17 +494,9 @@ export default function MyKitchen() {
                   ) : filteredInventory.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
-                        <p className="text-muted-foreground mb-4">
-                          No items in your {selectedCategory} yet
+                        <p className="text-muted-foreground">
+                          No items in your {selectedCategory} yet. Use the form on the left to add ingredients.
                         </p>
-                        <Button 
-                          onClick={() => setIsAddingItem(true)} 
-                          variant="outline"
-                          data-testid="button-add-first-item"
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Your First Item
-                        </Button>
                       </div>
                     </div>
                   ) : (
