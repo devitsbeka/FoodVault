@@ -5,6 +5,7 @@ import { isAuthenticated, optionalAuth } from "./replitAuth";
 import { getChatCompletion } from "./openai";
 import { insertKitchenInventorySchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
+import { searchSpoonacularRecipes, getSpoonacularRecipeById } from "./spoonacularApi";
 import { normalizeIngredientName } from "./normalizationService";
 
 // Shared error response helper
@@ -86,10 +87,11 @@ export function registerRoutes(app: Express) {
       const requestLimit = limit ? parseInt(limit as string) : 15; // Default to 15 recipes
       const matchThreshold = ingredientMatch ? parseInt(ingredientMatch as string) : 0;
       
-      // Fetch recipes from external API
+      // Fetch recipes from external API with fallback
       let apiRecipes: any[] = [];
+      
+      // Try api-ninjas first
       try {
-        // Fetch more recipes if filtering by ingredients (up to max of 20)
         const apiLimit = matchThreshold > 0 ? Math.min(requestLimit * 2, 20) : requestLimit;
         apiRecipes = await searchRecipes({
           searchQuery: search as string,
@@ -98,9 +100,24 @@ export function registerRoutes(app: Express) {
           limit: apiLimit,
           offset: offset ? parseInt(offset as string) : 0,
         });
+        console.log(`Fetched ${apiRecipes.length} recipes from api-ninjas`);
       } catch (apiError) {
-        console.error("Error fetching from external API:", apiError);
-        // Continue with database recipes if API fails
+        console.log("api-ninjas failed, trying Spoonacular fallback...");
+        // Fallback to Spoonacular if api-ninjas fails
+        try {
+          const apiLimit = matchThreshold > 0 ? Math.min(requestLimit * 2, 20) : requestLimit;
+          apiRecipes = await searchSpoonacularRecipes({
+            searchQuery: search as string,
+            dietType: dietType as string,
+            maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
+            limit: apiLimit,
+            offset: offset ? parseInt(offset as string) : 0,
+          });
+          console.log(`Fetched ${apiRecipes.length} recipes from Spoonacular`);
+        } catch (spoonError) {
+          console.error("Both API sources failed:", spoonError);
+          // Continue with database recipes only
+        }
       }
       
       // Also get database recipes
@@ -158,31 +175,36 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/recipes/:id", async (req, res) => {
     try {
-      // First try to get from API (for API-based recipe IDs starting with 'api-')
+      let recipe = null;
+      
+      // Try to get from API based on ID prefix
       if (req.params.id.startsWith('api-')) {
-        const recipe = await getApiRecipeById(req.params.id);
-        if (recipe) {
-          // Get user's kitchen inventory to map ingredients if authenticated
-          const userId = (req.user as any)?.claims?.sub;
-          if (userId) {
-            const inventory = await storage.getKitchenInventory(userId);
-            const inventoryNames = new Set(inventory.map(item => item.name.toLowerCase()));
-            
-            const ownedIngredients = recipe.ingredients.filter((ing: any) => 
-              inventoryNames.has(ing.name.toLowerCase())
-            );
-            const missingIngredients = recipe.ingredients.filter((ing: any) => 
-              !inventoryNames.has(ing.name.toLowerCase())
-            );
-            
-            return res.json({
-              ...recipe,
-              ownedIngredients,
-              missingIngredients,
-            });
-          }
-          return res.json(recipe);
+        recipe = await getApiRecipeById(req.params.id);
+      } else if (req.params.id.startsWith('spoon-')) {
+        recipe = await getSpoonacularRecipeById(req.params.id);
+      }
+      
+      if (recipe) {
+        // Get user's kitchen inventory to map ingredients if authenticated
+        const userId = (req.user as any)?.claims?.sub;
+        if (userId) {
+          const inventory = await storage.getKitchenInventory(userId);
+          const inventoryNames = new Set(inventory.map(item => item.name.toLowerCase()));
+          
+          const ownedIngredients = recipe.ingredients.filter((ing: any) => 
+            inventoryNames.has(ing.name.toLowerCase())
+          );
+          const missingIngredients = recipe.ingredients.filter((ing: any) => 
+            !inventoryNames.has(ing.name.toLowerCase())
+          );
+          
+          return res.json({
+            ...recipe,
+            ownedIngredients,
+            missingIngredients,
+          });
         }
+        return res.json(recipe);
       }
       
       // Fallback to database recipes (for user-created recipes) - requires auth
@@ -191,8 +213,8 @@ export function registerRoutes(app: Express) {
         return res.status(401).json({ message: "Authentication required" });
       }
       
-      const recipe = await storage.getRecipeById(req.params.id, userId);
-      if (!recipe) {
+      const dbRecipe = await storage.getRecipeById(req.params.id, userId);
+      if (!dbRecipe) {
         return res.status(404).json({ message: "Recipe not found" });
       }
       
@@ -200,7 +222,7 @@ export function registerRoutes(app: Express) {
       const inventory = await storage.getKitchenInventory(userId);
       const inventoryNames = new Set(inventory.map(item => item.name.toLowerCase()));
       
-      const ingredients = (recipe.ingredients as any) || [];
+      const ingredients = (dbRecipe.ingredients as any) || [];
       const ownedIngredients = ingredients.filter((ing: any) => 
         inventoryNames.has(ing.name.toLowerCase())
       );
@@ -209,7 +231,7 @@ export function registerRoutes(app: Express) {
       );
       
       res.json({
-        ...recipe,
+        ...dbRecipe,
         ownedIngredients,
         missingIngredients,
       });
