@@ -67,6 +67,9 @@ Preferred communication style: Simple, everyday language.
 - Kitchen Inventory: Items categorized by location (fridge, pantry, other) with expiration tracking
 - Recipes: Name, description, ingredients (JSON), instructions, prep/cook time, diet type, calories
 - Meal Plans: Scheduled meals with voting system for family collaboration
+- Meal Plan Seats: Configurable dining table seats (1-6) with per-seat dietary restrictions
+- Meal Seat Assignments: Recipe assignments to specific seats at the dining table
+- Recipe Interactions: User viewing/search history for smart recommendations
 - Families: Group management for shared meal planning
 - Shopping Lists: Collaborative shopping with checked items tracking
 - Chat Messages: AI conversation history with role-based messages
@@ -74,8 +77,12 @@ Preferred communication style: Simple, everyday language.
 **Relationships**
 - Users → Kitchen Inventory (one-to-many)
 - Users → Families (many-to-many through family_members)
+- Users → Recipe Interactions (one-to-many, tracks viewing history)
 - Recipes → Meal Plans (one-to-many)
 - Meal Plans → Votes (one-to-many)
+- Meal Plans → Seats (one-to-many, configurable dining table)
+- Meal Plan Seats → Seat Assignment (one-to-one, recipe per seat)
+- Seat Assignments → Recipe (many-to-one)
 - Users → Chat Messages (one-to-many)
 
 ### Key Features Architecture
@@ -98,6 +105,9 @@ Preferred communication style: Simple, everyday language.
 - Photo upload capability for user-generated content
 
 **Meal Planning**
+- Visual dining table interface (poker table layout, 1-6 configurable seats)
+- Per-seat dietary restrictions (vegetarian, vegan, gluten-free, etc.)
+- Recipe assignment to individual seats with real-time filtering
 - Collaborative voting system with vote thresholds
 - Calendar-based view for scheduled meals
 - Integration with family member permissions
