@@ -134,6 +134,27 @@ export default function MealPlanning() {
     });
   };
 
+  const handleRemoveRecipe = (seatNumber: number) => {
+    setSeats(prev =>
+      prev.map(seat => {
+        if (seat.seatNumber === seatNumber) {
+          return {
+            ...seat,
+            recipeId: undefined,
+            recipeName: undefined,
+            recipeImage: undefined,
+          };
+        }
+        return seat;
+      })
+    );
+
+    toast({
+      title: "Recipe removed",
+      description: `Recipe removed from Seat ${seatNumber}`,
+    });
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
@@ -293,6 +314,7 @@ export default function MealPlanning() {
               seats={seats}
               onSeatClick={handleSeatClick}
               onAddRecipe={handleAddRecipe}
+              onRemoveRecipe={handleRemoveRecipe}
             />
 
             {/* Action Buttons */}

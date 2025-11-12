@@ -14,6 +14,7 @@ interface DiningTableProps {
   seats: Seat[];
   onSeatClick: (seatNumber: number) => void;
   onAddRecipe: (seatNumber: number) => void;
+  onRemoveRecipe: (seatNumber: number) => void;
 }
 
 // Calculate seat positions in a circular/oval layout (poker table style)
@@ -42,7 +43,7 @@ function calculateSeatPositions(count: number): { x: number; y: number }[] {
   return positions;
 }
 
-export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: DiningTableProps) {
+export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe, onRemoveRecipe }: DiningTableProps) {
   const seatPositions = calculateSeatPositions(seatCount);
   
   return (
@@ -120,27 +121,74 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
               
               {/* Content based on state */}
               {seat?.recipeId ? (
-                // Recipe assigned - show recipe card
-                <g pointerEvents="none">
-                  {seat.recipeImage && (
-                    <image
-                      href={seat.recipeImage}
-                      x={pos.x - 50}
-                      y={pos.y - 50}
-                      width="100"
-                      height="100"
-                      clipPath={`url(#seat-clip-${seatNumber})`}
-                    />
-                  )}
-                  <text
-                    x={pos.x}
-                    y={pos.y + 80}
-                    textAnchor="middle"
-                    className="fill-foreground text-sm font-medium"
-                    pointerEvents="none"
+                // Recipe assigned - show recipe card with remove button
+                <g>
+                  <g pointerEvents="none">
+                    {seat.recipeImage && (
+                      <image
+                        href={seat.recipeImage}
+                        x={pos.x - 50}
+                        y={pos.y - 50}
+                        width="100"
+                        height="100"
+                        clipPath={`url(#seat-clip-${seatNumber})`}
+                      />
+                    )}
+                    <text
+                      x={pos.x}
+                      y={pos.y + 80}
+                      textAnchor="middle"
+                      className="fill-foreground text-sm font-medium"
+                      pointerEvents="none"
+                    >
+                      {seat.recipeName}
+                    </text>
+                  </g>
+                  
+                  {/* Remove button - top-right corner */}
+                  <g
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveRecipe(seatNumber);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onRemoveRecipe(seatNumber);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Remove recipe from seat ${seatNumber}`}
+                    className="cursor-pointer"
+                    data-testid={`button-remove-recipe-${seatNumber}`}
                   >
-                    {seat.recipeName}
-                  </text>
+                    <circle
+                      cx={pos.x + 45}
+                      cy={pos.y - 45}
+                      r="12"
+                      className="fill-destructive hover:fill-destructive/80 transition-colors"
+                    />
+                    <line
+                      x1={pos.x + 40}
+                      y1={pos.y - 50}
+                      x2={pos.x + 50}
+                      y2={pos.y - 40}
+                      className="stroke-destructive-foreground"
+                      strokeWidth="2"
+                      pointerEvents="none"
+                    />
+                    <line
+                      x1={pos.x + 50}
+                      y1={pos.y - 50}
+                      x2={pos.x + 40}
+                      y2={pos.y - 40}
+                      className="stroke-destructive-foreground"
+                      strokeWidth="2"
+                      pointerEvents="none"
+                    />
+                  </g>
                 </g>
               ) : (
                 // Empty state - show + icon (keyboard accessible)
