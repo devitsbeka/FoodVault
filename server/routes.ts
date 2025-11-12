@@ -247,6 +247,17 @@ export function registerRoutes(app: Express) {
       // Merge: prioritize image-bearing recipes
       let allRecipes = [...recipesWithImages, ...dbWithImages, ...recipesWithoutImages];
       
+      // Filter by mealType - treat null as compatible with lunch/dinner (main course ambiguity)
+      if (mealType && mealType !== 'all') {
+        const isLunchOrDinner = mealType === 'lunch' || mealType === 'dinner';
+        allRecipes = allRecipes.filter((recipe: any) => {
+          if (recipe.mealType === mealType) return true;
+          // Include null mealType for lunch/dinner (main course recipes)
+          if (isLunchOrDinner && recipe.mealType === null) return true;
+          return false;
+        });
+      }
+      
       // Apply ingredient matching filter if requested and user is authenticated
       if (matchThreshold > 0 && req.user) {
         const userId = (req.user as any)?.claims?.sub;

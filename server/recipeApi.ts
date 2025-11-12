@@ -276,10 +276,15 @@ export async function searchRecipes(params: {
   }
 
   // Post-filter by mealType (check tags since API doesn't support it directly)
+  // Treat null mealType as compatible with lunch/dinner (main course ambiguity)
   if (params.mealType && params.mealType !== 'all') {
-    recipes = recipes.filter(r => 
-      r.tags.some(tag => tag.toLowerCase() === params.mealType?.toLowerCase())
-    );
+    const isLunchOrDinner = params.mealType === 'lunch' || params.mealType === 'dinner';
+    recipes = recipes.filter(r => {
+      const hasTag = r.tags.some(tag => tag.toLowerCase() === params.mealType?.toLowerCase());
+      // Include null mealType for lunch/dinner (main course recipes), strict for breakfast/snack
+      const isAmbiguous = isLunchOrDinner && r.mealType === null;
+      return hasTag || isAmbiguous;
+    });
   }
 
   if (params.maxCalories && params.maxCalories > 0) {

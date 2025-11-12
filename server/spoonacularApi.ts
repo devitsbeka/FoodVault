@@ -120,14 +120,22 @@ function normalizeSpoonacularRecipe(recipe: SpoonacularRecipe): NormalizedRecipe
     else if (firstCuisine.includes('american')) cuisine = 'american';
   }
 
-  // Detect mealType from dishTypes
+  // Detect mealType from dishTypes - preserve explicit tags, leave null for ambiguous cases
   let mealType: string | null = null;
   if (recipe.dishTypes && recipe.dishTypes.length > 0) {
     const dishTypesStr = recipe.dishTypes.join(' ').toLowerCase();
-    if (dishTypesStr.includes('breakfast')) mealType = 'breakfast';
-    else if (dishTypesStr.includes('main course') || dishTypesStr.includes('dinner')) mealType = 'dinner';
-    else if (dishTypesStr.includes('lunch') || dishTypesStr.includes('salad') || dishTypesStr.includes('sandwich')) mealType = 'lunch';
-    else if (dishTypesStr.includes('snack') || dishTypesStr.includes('appetizer')) mealType = 'snack';
+    // Preserve explicit meal types - dinner takes priority over lunch when both present
+    if (dishTypesStr.includes('breakfast')) {
+      mealType = 'breakfast';
+    } else if (dishTypesStr.includes('dinner')) {
+      mealType = 'dinner';
+    } else if (dishTypesStr.includes('lunch') || dishTypesStr.includes('salad') || dishTypesStr.includes('sandwich')) {
+      mealType = 'lunch';
+    } else if (dishTypesStr.includes('snack') || dishTypesStr.includes('appetizer')) {
+      mealType = 'snack';
+    }
+    // Leave mealType as null for "main course" and other ambiguous cases
+    // Filtering logic will treat null as eligible for both lunch and dinner
   }
 
   // Generate tags
