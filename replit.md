@@ -20,16 +20,18 @@ The backend is an Express.js server in TypeScript, providing a RESTful API. Auth
 
 ### Data Models
 
-Core entities include Users (profiles, preferences), Kitchen Inventory (items, expiration), Recipes (details, ingredients), Meal Plans (scheduled meals, voting), Meal Plan Seats (configurable dining table, dietary restrictions), Recipe Interactions, Families (group management), Shopping Lists (collaborative tracking), and Chat Messages (AI history). These entities are interconnected through defined relationships to support the application's features.
+Core entities include Users (profiles, preferences), Kitchen Inventory (items, expiration), Recipes (details, ingredients with tags array for dietary filtering), Meal Plans (scheduled meals, voting), Meal Plan Seats (configurable dining table, dietary restrictions, seat assignments), Recipe Interactions, Families (group management), Shopping Lists (collaborative tracking), and Chat Messages (AI history). These entities are interconnected through defined relationships to support the application's features.
+
+**Recipe Tag Taxonomy:** Recipes use standardized tags for dietary restriction filtering (vegan, vegetarian, halal, kosher, low-carb, contains-gluten, contains-dairy, contains-nuts). Tag-based filtering ensures accurate compliance with dietary needs.
 
 ### Key Features Architecture
 
 *   **Onboarding Flow:** A multi-slide carousel guides new users.
 *   **Kitchen Inventory Management:** Provides CRUD operations for inventory items across different locations (fridge, pantry), with expiration tracking and category-based filtering.
-*   **Recipe Discovery:** Features a search and filter system (diet type, calories, ingredient matching), rating functionality, and photo uploads.
-*   **Meal Planning:** Offers a visual dining table interface with configurable seats, per-seat dietary restrictions, recipe assignment, and a collaborative voting system for family meal planning.
+*   **Recipe Discovery:** Features a search and filter system (diet type, calories, ingredient matching), rating functionality, and photo uploads. Backend supports dietary restriction filtering via a tag-based system with database-level enforcement.
+*   **Meal Planning:** Offers a visual dining table interface with configurable seats (2-6 people, poker table layout), per-seat dietary restrictions, recipe assignment via filtered picker modal, and a collaborative voting system for family meal planning. Recipe picker combines dietary restrictions from ALL active seats and enforces compliance via backend tag filtering. External API recipes excluded when restrictions present to guarantee safety.
 *   **AI Chat Assistant:** Integrates OpenAI GPT-5 via Replit AI Integrations for context-aware recipe suggestions and shopping list generation.
-*   **Family Collaboration:** Supports family creation, member invitation, role-based access, shared meal plans, and family-wide inventory visibility.
+*   **Family Collaboration:** Supports family creation, member invitation, role-based access, shared meal plans, and family-wide inventory visibility. Authorization layer prevents cross-family meal plan access.
 
 ## External Dependencies
 
