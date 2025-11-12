@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, Clock, Flame, ChefHat, Star } from "lucide-react";
+import { Search, Clock, Flame, ChefHat, Star, Refrigerator } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +17,7 @@ import type { Recipe } from "@shared/schema";
 type RecipeWithRating = Recipe & {
   averageRating?: number;
   ratingCount?: number;
+  matchPercentage?: number;
 };
 
 export default function Recipes() {
@@ -237,6 +238,12 @@ export default function Recipes() {
                     <div className="w-full h-full flex items-center justify-center">
                       <ChefHat className="w-16 h-16 text-muted-foreground" />
                     </div>
+                  )}
+                  {recipe.matchPercentage !== undefined && recipe.matchPercentage > 0 && (
+                    <Badge className="absolute top-2 left-2 flex items-center gap-1" variant="secondary" data-testid={`badge-match-${recipe.id}`}>
+                      <Refrigerator className="w-3 h-3" />
+                      {recipe.matchPercentage}%
+                    </Badge>
                   )}
                   {recipe.dietType && (
                     <Badge className="absolute top-2 right-2" variant="secondary">
