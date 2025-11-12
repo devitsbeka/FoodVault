@@ -260,6 +260,29 @@ Preferred communication style: Simple, everyday language.
 - Category validation preventing invalid enum values
 - Proper error handling and auth checks throughout
 
+**Shopping List Item Management (January 2025):**
+- ✅ Fixed missing PATCH/DELETE endpoints for shopping list items
+- ✅ Added status toggle endpoint: PATCH /api/shopping-lists/:listId/items/:itemId/status
+- ✅ Added assignment endpoint: PATCH /api/shopping-lists/:listId/items/:itemId/assign
+- ✅ Added delete endpoint: DELETE /api/shopping-lists/:listId/items/:itemId
+- ✅ Removed duplicate legacy endpoints at /api/shopping-list-items/:itemId/... to prevent confusion
+- ✅ All endpoints use proper Zod validation and authorization checks
+- ✅ Checkboxes now work: toggle between 'active' and 'bought' status
+- ✅ Assignment dropdown works: assign items to family members (family lists only)
+- ✅ Delete button works: remove items from shopping lists
+
+**Automatic Ingredient Images (January 2025):**
+- ✅ Kitchen inventory POST endpoint now auto-fetches ingredient images from Spoonacular API
+- ✅ Uses ingredient autocomplete endpoint for 30x30px thumbnails
+- ✅ 24-hour memoization cache to reduce API calls
+- ✅ Graceful fallback to null if API unavailable
+- ✅ All ingredient images display consistently at 30x30px with Avatar fallbacks
+
+**UX Improvements (January 2025):**
+- ✅ Added "Personal" vs "Family List" badges to shopping lists
+- ✅ Improved feature discoverability (users know when assignment is available)
+- ✅ Consistent IngredientImage component used across all pages
+
 **Next Steps:**
 1. Implement notifications UI with bell icon and unread count
 2. Run comprehensive end-to-end tests for all new features
