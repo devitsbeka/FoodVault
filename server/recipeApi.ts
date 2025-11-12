@@ -220,7 +220,6 @@ export async function searchRecipes(params: {
   recipes = recipes.slice(offset, offset + limit);
 
   return recipes;
-  }
 }
 
 // Get recipe by ID (reconstruct from search)

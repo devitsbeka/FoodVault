@@ -893,7 +893,7 @@ export const storage = {
     }
     
     // Check if user owns the notification
-    if (existing[0].userId !== userId) {
+    if (existing[0].recipientUserId !== userId) {
       return { status: "forbidden" };
     }
     
@@ -904,7 +904,7 @@ export const storage = {
       .where(
         and(
           eq(notifications.id, notificationId),
-          eq(notifications.userId, userId)
+          eq(notifications.recipientUserId, userId)
         )
       )
       .returning();

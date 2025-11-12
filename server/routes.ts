@@ -88,13 +88,14 @@ export function registerRoutes(app: Express) {
       const matchThreshold = ingredientMatch ? parseInt(ingredientMatch as string) : 0;
       
       // Fetch recipes from external API with automatic fallback
+      // Prioritize Spoonacular since it provides images (api-ninjas doesn't)
       let apiRecipes: any[] = [];
-      let apiSource = "api-ninjas";
+      let apiSource = "Spoonacular";
       
-      // Try api-ninjas first
+      // Try Spoonacular first (has images!)
       try {
         const apiLimit = matchThreshold > 0 ? Math.min(requestLimit * 2, 20) : requestLimit;
-        apiRecipes = await searchRecipes({
+        apiRecipes = await searchSpoonacularRecipes({
           searchQuery: search as string,
           dietType: dietType as string,
           maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
@@ -102,13 +103,13 @@ export function registerRoutes(app: Express) {
           offset: offset ? parseInt(offset as string) : 0,
         });
         console.log(`Fetched ${apiRecipes.length} recipes from ${apiSource}`);
-      } catch (apiError) {
-        console.log("api-ninjas failed, trying Spoonacular fallback...");
-        apiSource = "Spoonacular";
-        // Fallback to Spoonacular if api-ninjas fails
+      } catch (spoonError) {
+        console.log("Spoonacular failed, trying api-ninjas fallback...");
+        apiSource = "api-ninjas";
+        // Fallback to api-ninjas if Spoonacular fails (no images though)
         try {
           const apiLimit = matchThreshold > 0 ? Math.min(requestLimit * 2, 20) : requestLimit;
-          apiRecipes = await searchSpoonacularRecipes({
+          apiRecipes = await searchRecipes({
             searchQuery: search as string,
             dietType: dietType as string,
             maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
@@ -116,8 +117,8 @@ export function registerRoutes(app: Express) {
             offset: offset ? parseInt(offset as string) : 0,
           });
           console.log(`Fetched ${apiRecipes.length} recipes from ${apiSource}`);
-        } catch (spoonError) {
-          console.error("Both API sources failed:", spoonError);
+        } catch (apiError) {
+          console.error("Both API sources failed:", apiError);
           // Continue with database recipes only
         }
       }
