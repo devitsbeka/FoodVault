@@ -78,6 +78,43 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.get("/api/recipes/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const recipe = await storage.getRecipeById(req.params.id, user.claims.sub);
+      if (!recipe) {
+        return res.status(404).json({ message: "Recipe not found" });
+      }
+      res.json(recipe);
+    } catch (error) {
+      console.error("Error getting recipe:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/recipes/:id/rate", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { rating, comment } = req.body;
+
+      if (typeof rating !== "number" || rating < 1 || rating > 5) {
+        return res.status(400).json({ message: "Rating must be between 1 and 5" });
+      }
+
+      await storage.rateRecipe({
+        recipeId: req.params.id,
+        userId: user.claims.sub,
+        rating,
+        comment: comment || null,
+      });
+
+      res.json({ message: "Rating submitted successfully" });
+    } catch (error) {
+      console.error("Error rating recipe:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/recipes/recommended", isAuthenticated, async (req, res) => {
     try {
       const user = req.user as any;

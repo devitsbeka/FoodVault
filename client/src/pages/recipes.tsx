@@ -13,6 +13,11 @@ import { Search, SlidersHorizontal, Clock, Flame, ChefHat, Star } from "lucide-r
 import { Link } from "wouter";
 import type { Recipe } from "@shared/schema";
 
+type RecipeWithRating = Recipe & {
+  averageRating?: number;
+  ratingCount?: number;
+};
+
 export default function Recipes() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
@@ -21,7 +26,7 @@ export default function Recipes() {
     ingredientMatch: 50,
   });
 
-  const { data: recipes, isLoading } = useQuery<Recipe[]>({
+  const { data: recipes, isLoading } = useQuery<RecipeWithRating[]>({
     queryKey: ["/api/recipes", searchQuery, filters],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -211,7 +216,15 @@ export default function Recipes() {
                   )}
                 </div>
                 <CardContent className="p-4">
-                  <h3 className="font-semibold text-lg mb-2 line-clamp-1">{recipe.name}</h3>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="font-semibold text-lg line-clamp-1 flex-1">{recipe.name}</h3>
+                    {recipe.averageRating && recipe.averageRating > 0 && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Star className="w-4 h-4 fill-primary text-primary" />
+                        <span className="text-sm font-medium">{recipe.averageRating.toFixed(1)}</span>
+                      </div>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
                     {recipe.description || "A delicious recipe waiting for you to try"}
                   </p>

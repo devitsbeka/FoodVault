@@ -15,6 +15,7 @@ import Recipes from "@/pages/recipes";
 import MealPlanning from "@/pages/meal-planning";
 import FamilyPage from "@/pages/family";
 import ShoppingListPage from "@/pages/shopping-list";
+import RecipeDetail from "@/pages/recipe-detail";
 import { Home as HomeIcon, Refrigerator, ChefHat, Calendar, Users, ShoppingCart, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useLocation } from "wouter";
@@ -105,6 +106,7 @@ function Router() {
           <Route path="/" component={Home} />
           <Route path="/my-kitchen" component={MyKitchen} />
           <Route path="/recipes" component={Recipes} />
+          <Route path="/recipes/:id" component={RecipeDetail} />
           <Route path="/meal-planning" component={MealPlanning} />
           <Route path="/family" component={FamilyPage} />
           <Route path="/shopping-list" component={ShoppingListPage} />

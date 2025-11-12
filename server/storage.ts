@@ -56,7 +56,7 @@ export const storage = {
     searchQuery?: string;
     dietType?: string;
     maxCalories?: number;
-  }): Promise<Recipe[]> {
+  }): Promise<any[]> {
     let query = db.select().from(recipes);
     
     const conditions = [];
@@ -75,20 +75,88 @@ export const storage = {
     
     const results = await query.orderBy(desc(recipes.createdAt));
     
+    // Get ratings for all recipes
+    const allRatings = await db.select().from(recipeRatings);
+    const ratingsByRecipe = allRatings.reduce((acc, rating) => {
+      if (!acc[rating.recipeId]) acc[rating.recipeId] = [];
+      acc[rating.recipeId].push(rating);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    // Add rating info to each recipe
+    const recipesWithRatings = results.map(recipe => {
+      const ratings = ratingsByRecipe[recipe.id] || [];
+      const averageRating = ratings.length > 0
+        ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
+        : 0;
+      return {
+        ...recipe,
+        averageRating,
+        ratingCount: ratings.length,
+      };
+    });
+    
     if (filters?.searchQuery) {
       const search = filters.searchQuery.toLowerCase();
-      return results.filter(r => 
+      return recipesWithRatings.filter(r => 
         r.name.toLowerCase().includes(search) ||
         r.description?.toLowerCase().includes(search)
       );
     }
     
-    return results;
+    return recipesWithRatings;
   },
 
-  async getRecipeById(id: string): Promise<Recipe | null> {
-    const result = await db.select().from(recipes).where(eq(recipes.id, id));
-    return result[0] || null;
+  async getRecipeById(id: string, userId?: string): Promise<any | null> {
+    const recipe = await db.select().from(recipes).where(eq(recipes.id, id)).limit(1);
+    if (!recipe[0]) return null;
+
+    const ratings = await db
+      .select({
+        rating: recipeRatings,
+        user: users,
+      })
+      .from(recipeRatings)
+      .leftJoin(users, eq(recipeRatings.userId, users.id))
+      .where(eq(recipeRatings.recipeId, id));
+
+    const ratingsWithUser = ratings.map(r => ({
+      ...r.rating,
+      user: r.user!,
+    }));
+
+    const averageRating = ratingsWithUser.length > 0
+      ? ratingsWithUser.reduce((sum, r) => sum + r.rating, 0) / ratingsWithUser.length
+      : null;
+
+    const userRating = userId
+      ? ratingsWithUser.find(r => r.userId === userId)
+      : null;
+
+    return {
+      ...recipe[0],
+      ratings: ratingsWithUser,
+      averageRating,
+      userRating: userRating || null,
+    };
+  },
+
+  async rateRecipe(data: { recipeId: string; userId: string; rating: number; comment: string | null }): Promise<void> {
+    await db
+      .insert(recipeRatings)
+      .values({
+        recipeId: data.recipeId,
+        userId: data.userId,
+        rating: data.rating,
+        comment: data.comment,
+      })
+      .onConflictDoUpdate({
+        target: [recipeRatings.recipeId, recipeRatings.userId],
+        set: {
+          rating: data.rating,
+          comment: data.comment,
+        },
+      });
   },
 
   async addRecipe(recipe: InsertRecipe): Promise<Recipe> {
