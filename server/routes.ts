@@ -2,7 +2,7 @@
 import type { Express, Response } from "express";
 import { storage } from "./storage";
 import { isAuthenticated, optionalAuth } from "./replitAuth";
-import { getChatCompletion } from "./openai";
+import { getChatCompletion, getProductRecommendations } from "./openai";
 import { insertKitchenInventorySchema, insertKitchenEquipmentSchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
 import { searchSpoonacularRecipes, getSpoonacularRecipeById, getIngredientImageMemoized, getIngredientSuggestionsMemoized } from "./spoonacularApi";
@@ -129,6 +129,24 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Error deleting kitchen equipment:", error);
       sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.get("/api/product-recommendations/:itemType", isAuthenticated, async (req, res) => {
+    try {
+      const { itemType } = req.params;
+      const { itemName } = req.query;
+      
+      if (!itemName || typeof itemName !== 'string') {
+        sendError(res, 400, "Item name is required");
+        return;
+      }
+      
+      const recommendations = await getProductRecommendations(itemType, itemName);
+      res.json(recommendations);
+    } catch (error) {
+      console.error("Error getting product recommendations:", error);
+      sendError(res, 500, "Failed to get product recommendations");
     }
   });
 
