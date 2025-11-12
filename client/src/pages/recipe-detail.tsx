@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Clock, Flame, Users, Star, MessageSquare, ChefHat, Check, ShoppingCart, Plus } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -65,6 +65,18 @@ export default function RecipeDetail() {
     queryKey: ["/api/shopping-lists"],
     enabled: !!user,
   });
+
+  // Track recipe view for smart recommendations
+  useEffect(() => {
+    if (recipe?.id && user) {
+      apiRequest("POST", "/api/recipe-interactions", {
+        recipeId: recipe.id,
+        interactionType: "view",
+      }).catch(() => {
+        // Silently fail - tracking shouldn't disrupt user experience
+      });
+    }
+  }, [recipe?.id, user]);
 
   const rateMutation = useMutation({
     mutationFn: async ({ rating, comment }: { rating: number; comment: string }) => {
