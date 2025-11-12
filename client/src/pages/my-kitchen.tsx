@@ -7,13 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Calendar, X, ImageOff } from "lucide-react";
+import { Plus, Trash2, Calendar, X, ImageOff, Package, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { KitchenInventory, InsertKitchenInventory } from "@shared/schema";
+import type { KitchenInventory, InsertKitchenInventory, InventoryReviewQueue } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
-type Category = "fridge" | "pantry" | "other";
+type Category = "fridge" | "pantry" | "other" | "pending";
 
 interface UnsplashImage {
   urls: {
@@ -37,6 +37,10 @@ export default function MyKitchen() {
 
   const { data: inventory, isLoading } = useQuery<KitchenInventory[]>({
     queryKey: ["/api/kitchen-inventory"],
+  });
+
+  const { data: reviewQueue, isLoading: reviewLoading } = useQuery<InventoryReviewQueue[]>({
+    queryKey: ["/api/inventory-review-queue"],
   });
 
   // Fetch ingredient image from Unsplash
@@ -115,6 +119,69 @@ export default function MyKitchen() {
     },
   });
 
+  const approveMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      await apiRequest("POST", `/api/inventory-review-queue/${itemId}/approve`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory-review-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/kitchen-inventory"] });
+      toast({
+        title: "Item approved",
+        description: "Item has been added to your kitchen.",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to approve item. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      await apiRequest("DELETE", `/api/inventory-review-queue/${itemId}`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory-review-queue"] });
+      toast({
+        title: "Item rejected",
+        description: "Item has been removed from the queue.",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to reject item. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/kitchen-inventory/${id}`, undefined);
@@ -156,10 +223,20 @@ export default function MyKitchen() {
       return;
     }
 
+    // Prevent adding items when on pending tab
+    if (selectedCategory === 'pending') {
+      toast({
+        title: "Invalid category",
+        description: "Please select Fridge, Pantry, or Other to add items.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     addMutation.mutate({
       userId: user!.id,
       name: newItem.name,
-      category: selectedCategory,
+      category: selectedCategory as 'fridge' | 'pantry' | 'other',
       quantity: newItem.quantity,
       unit: newItem.unit || null,
       expirationDate: newItem.expirationDate ? new Date(newItem.expirationDate) : null,
@@ -315,34 +392,102 @@ export default function MyKitchen() {
         {/* Right Column - Visual Inventory */}
         <div className="lg:col-span-3">
           <Tabs value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as Category)}>
-            <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsList className="grid w-full grid-cols-4 mb-6">
               <TabsTrigger value="fridge" data-testid="tab-fridge">Fridge</TabsTrigger>
               <TabsTrigger value="pantry" data-testid="tab-pantry">Pantry</TabsTrigger>
               <TabsTrigger value="other" data-testid="tab-other">Other</TabsTrigger>
+              <TabsTrigger value="pending" data-testid="tab-pending">
+                Pending Review
+                {reviewQueue && reviewQueue.length > 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
+                    {reviewQueue.length}
+                  </span>
+                )}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value={selectedCategory} className="mt-0">
-              <Card className="overflow-hidden">
-                {/* Fridge/Shelf Visual Background */}
-                <div 
-                  className="relative min-h-[600px] p-6"
-                  style={{
-                    background: selectedCategory === 'fridge' 
-                      ? 'linear-gradient(180deg, #f0f4f8 0%, #e8eef4 50%, #dce4ec 100%)'
-                      : selectedCategory === 'pantry'
-                      ? 'linear-gradient(180deg, #fef3e2 0%, #fcecd0 50%, #fae5c0 100%)'
-                      : 'linear-gradient(180deg, #f5f5f5 0%, #e8e8e8 50%, #d8d8d8 100%)'
-                  }}
-                >
-                  {/* Shelf Lines */}
-                  {selectedCategory !== 'other' && (
-                    <>
-                      <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-gray-400/30 to-transparent" style={{ top: '33%' }} />
-                      <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-gray-400/30 to-transparent" style={{ top: '66%' }} />
-                    </>
-                  )}
-                  
-                  {isLoading ? (
+              {selectedCategory === 'pending' ? (
+                // Pending Review Tab
+                <Card className="overflow-hidden">
+                  <div className="relative min-h-[600px] p-6">
+                    {reviewLoading ? (
+                      <div className="space-y-4">
+                        {Array(3).fill(0).map((_, i) => (
+                          <Skeleton key={i} className="h-24 rounded-xl" />
+                        ))}
+                      </div>
+                    ) : !reviewQueue || reviewQueue.length === 0 ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <Package className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold mb-2">No Items Pending Review</h3>
+                          <p className="text-muted-foreground">
+                            Items moved from shopping lists will appear here for approval
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {reviewQueue.map((item) => (
+                          <Card key={item.id} className="p-4" data-testid={`review-item-${item.id}`}>
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex-1">
+                                <h3 className="font-medium">{item.name}</h3>
+                                <p className="text-sm text-muted-foreground">
+                                  {item.quantity} {item.unit || "unit(s)"}
+                                  {item.categoryGuess && ` • Suggested: ${item.categoryGuess}`}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => rejectMutation.mutate(item.id)}
+                                  disabled={rejectMutation.isPending}
+                                  data-testid={`button-reject-${item.id}`}
+                                >
+                                  Reject
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => approveMutation.mutate(item.id)}
+                                  disabled={approveMutation.isPending}
+                                  data-testid={`button-approve-${item.id}`}
+                                >
+                                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                                  Add to Kitchen
+                                </Button>
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ) : (
+                // Fridge/Pantry/Other Tabs
+                <Card className="overflow-hidden">
+                  <div 
+                    className="relative min-h-[600px] p-6"
+                    style={{
+                      background: selectedCategory === 'fridge' 
+                        ? 'linear-gradient(180deg, #f0f4f8 0%, #e8eef4 50%, #dce4ec 100%)'
+                        : selectedCategory === 'pantry'
+                        ? 'linear-gradient(180deg, #fef3e2 0%, #fcecd0 50%, #fae5c0 100%)'
+                        : 'linear-gradient(180deg, #f5f5f5 0%, #e8e8e8 50%, #d8d8d8 100%)'
+                    }}
+                  >
+                    {/* Shelf Lines */}
+                    {selectedCategory !== 'other' && (
+                      <>
+                        <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-gray-400/30 to-transparent" style={{ top: '33%' }} />
+                        <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-gray-400/30 to-transparent" style={{ top: '66%' }} />
+                      </>
+                    )}
+                    
+                    {isLoading ? (
                     <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
                       {Array(6).fill(0).map((_, i) => (
                         <Skeleton key={i} className="h-40 rounded-xl" />
@@ -430,7 +575,8 @@ export default function MyKitchen() {
                     </div>
                   )}
                 </div>
-              </Card>
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
         </div>
