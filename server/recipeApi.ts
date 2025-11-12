@@ -94,22 +94,24 @@ function generateTags(recipe: RecipeApiResponse): string[] {
   const title = recipe.title.toLowerCase();
   const ingredients = recipe.ingredients.join(' ').toLowerCase();
   
-  // Meal type tags
-  if (title.includes('breakfast') || ingredients.includes('egg') || ingredients.includes('pancake') || ingredients.includes('waffle')) {
+  // Meal type tags - conservative inference, only tag when explicit
+  // Leave ambiguous dishes with mealType=null so lunch/dinner filters accept them
+  if (title.includes('breakfast') && (ingredients.includes('egg') || ingredients.includes('pancake') || ingredients.includes('waffle'))) {
     tags.push('breakfast');
   }
-  if (title.includes('lunch') || title.includes('salad') || title.includes('sandwich')) {
+  if (title.includes('lunch') || (title.includes('salad') && !title.includes('fruit')) || title.includes('sandwich')) {
     tags.push('lunch');
   }
-  if (title.includes('dinner') || title.includes('soup') || title.includes('stew') || title.includes('roast')) {
+  if (title.includes('dinner')) {
     tags.push('dinner');
   }
-  if (title.includes('dessert') || title.includes('cake') || title.includes('cookie')) {
+  if (title.includes('dessert') || title.includes('cake') || title.includes('cookie') || title.includes('pie')) {
     tags.push('dessert');
   }
   if (title.includes('snack') || title.includes('appetizer')) {
     tags.push('snack');
   }
+  // Removed aggressive inferences (soup, stew, roast) to allow ambiguous dishes
   
   // Cuisine tags - expanded to cover all UI options
   if (title.includes('italian') || ingredients.includes('pasta') || ingredients.includes('parmesan') || ingredients.includes('mozzarella')) {
