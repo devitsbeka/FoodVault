@@ -1,0 +1,17 @@
+- Fix API issues with recipe display, currently when I go there there is an empty page despite of the fact that on API developer platform it shows that 20 recipes have been fetched.
+- Easy way to move items from shopping list to fridge, add new tab for pending review items that are added from shopping list that you additionally confirm that you really have and are added to fridge after that.
+- When user goes inside recipe details they see list of ingredients as separate chip elements, and they see which of them they have in the fridge already, for missing ones there is quick add icon to add them to shopping list.
+- List of ingredients and fridge stock is mapped throughout an app and is consistent.
+- When I add items to shopping list I can either mark them as bought already manually or assign it to my family members ( they get notified on assignment) (implement notificaiton system to accompany this feature), shopping list now shows list of items and people it is assigned to.
+- For recipes filtering add separate section called Smart Recipes or Fridge Assisted and it includes toggle to show only recipes including items in the fridge with some kind of draggable bar to adjust minimum threshold of overlap like 25-50-75-100% of ingredients.
+
+
+Cooking Assistance Mode
+
+- User uses this mode while actually cooking the meal, and this mode is designed to assist at eevery step so user doesn’t feel abandoned and can manage stress of making deal for the first time, this includes full focused experience on meal prep step by step with user being able to mark individual steps as done (1 step shown per each time, like really focused flashcards mode) with timer, big buttons and etc, really accessible for parallel cooking mode where you have your limbs busy :D
+
+Proactive Suggestions
+
+- App should proactively suggest recipes based on my stock in fridge or my past preferences like what are type of recipes I’ve viewed previously, or searched for. Suggested recipes should be displayed on Home Screen as flash cards, with buttons to easily add them to your meal plan or shopping list.
+
+- When user goes to shopping list page, based on shopping list items + fridge content + recipes that you added in meal plan, app should determine missing ingredients and suggest adding them to shopping list.
