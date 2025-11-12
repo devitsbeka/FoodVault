@@ -383,6 +383,33 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Recipe Interactions - Track views and searches for smart recommendations
+  app.post("/api/recipe-interactions", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { recipeId, interactionType } = req.body;
+
+      if (!recipeId || !interactionType) {
+        return res.status(400).json({ message: "recipeId and interactionType are required" });
+      }
+
+      if (interactionType !== 'view' && interactionType !== 'search') {
+        return res.status(400).json({ message: "interactionType must be 'view' or 'search'" });
+      }
+
+      if (interactionType === 'view') {
+        await storage.trackRecipeView(user.claims.sub, recipeId);
+      } else {
+        await storage.trackRecipeSearch(user.claims.sub, recipeId);
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error tracking interaction:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Meal Plan routes
   app.get("/api/meal-plans", isAuthenticated, async (req, res) => {
     try {
