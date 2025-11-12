@@ -141,8 +141,6 @@ function normalizeRecipe(apiRecipe: RecipeApiResponse): NormalizedRecipe {
 async function fetchRecipesFromApi(params: {
   title?: string;
   ingredients?: string;
-  limit?: number;
-  offset?: number;
 }): Promise<RecipeApiResponse[]> {
   if (!RECIPE_API_KEY) {
     throw new Error("RECIPE_API_KEY environment variable is not set");
@@ -151,10 +149,10 @@ async function fetchRecipesFromApi(params: {
   const queryParams = new URLSearchParams();
   if (params.title) queryParams.append('title', params.title);
   if (params.ingredients) queryParams.append('ingredients', params.ingredients);
-  if (params.limit) queryParams.append('limit', params.limit.toString());
-  if (params.offset) queryParams.append('offset', params.offset.toString());
+  // Note: api-ninjas doesn't support limit/offset, returns fixed set
 
   const url = `${RECIPE_API_BASE_URL}?${queryParams.toString()}`;
+  console.log('Calling api-ninjas with URL:', url);
   
   const response = await fetch(url, {
     headers: {
@@ -163,6 +161,8 @@ async function fetchRecipesFromApi(params: {
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.log('api-ninjas error response:', errorText);
     throw new Error(`Recipe API error: ${response.status} ${response.statusText}`);
   }
 
@@ -187,10 +187,7 @@ export async function searchRecipes(params: {
   offset?: number;
 }): Promise<NormalizedRecipe[]> {
   try {
-    const apiParams: Parameters<typeof fetchRecipesFromApi>[0] = {
-      limit: params.limit || 10,
-      offset: params.offset || 0,
-    };
+    const apiParams: Parameters<typeof fetchRecipesFromApi>[0] = {};
 
     // Search by title if query provided
     if (params.searchQuery) {
@@ -217,6 +214,11 @@ export async function searchRecipes(params: {
       // Since API doesn't provide calories, we can't filter by it
       // In a real app, you'd need a different API or calculate calories
     }
+
+    // Apply limit/offset on client side since API doesn't support it
+    const offset = params.offset || 0;
+    const limit = params.limit || 10;
+    recipes = recipes.slice(offset, offset + limit);
 
     return recipes;
   } catch (error) {
