@@ -53,20 +53,24 @@ export const storage = {
 
   // Recipes
   async getRecipeSummaries(limit: number = 15, dietType?: string): Promise<Array<{id: string, name: string, dietType: string | null, calories: number | null}>> {
-    let query = db
+    const conditions = [];
+    
+    if (dietType && dietType !== 'all') {
+      conditions.push(eq(recipes.dietType, dietType));
+    }
+    
+    const results = await db
       .select({
         id: recipes.id,
         name: recipes.name,
         dietType: recipes.dietType,
         calories: recipes.calories,
       })
-      .from(recipes);
+      .from(recipes)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .limit(limit)
+      .orderBy(desc(recipes.createdAt));
     
-    if (dietType && dietType !== 'all') {
-      query = query.where(eq(recipes.dietType, dietType));
-    }
-    
-    const results = await query.limit(limit).orderBy(desc(recipes.createdAt));
     return results;
   },
 
@@ -309,7 +313,7 @@ export const storage = {
     let mealPlanApproved = false;
 
     if (mealPlan[0]) {
-      mealPlanApproved = mealPlan[0].mealPlan.isApproved;
+      mealPlanApproved = mealPlan[0].mealPlan.isApproved || false;
 
       if (!mealPlanApproved) {
         // Count upvotes for this meal

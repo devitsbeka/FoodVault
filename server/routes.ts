@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { isAuthenticated } from "./replitAuth";
 import { getChatCompletion } from "./openai";
 import { insertKitchenInventorySchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema } from "@shared/schema";
+import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
 
 export function registerRoutes(app: Express) {
   // Auth routes
@@ -62,26 +63,56 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Recipe routes
+  // Recipe routes - merging external API with database recipes
   app.get("/api/recipes", async (req, res) => {
     try {
-      const { search, dietType, maxCalories } = req.query;
-      const recipes = await storage.getRecipes({
+      const { search, dietType, maxCalories, limit, offset } = req.query;
+      
+      // Fetch recipes from external API
+      let apiRecipes: any[] = [];
+      try {
+        apiRecipes = await searchRecipes({
+          searchQuery: search as string,
+          dietType: dietType as string,
+          maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
+          limit: limit ? parseInt(limit as string) : 20,
+          offset: offset ? parseInt(offset as string) : 0,
+        });
+      } catch (apiError) {
+        console.error("Error fetching from external API:", apiError);
+        // Continue with database recipes if API fails
+      }
+      
+      // Also get database recipes
+      const dbRecipes = await storage.getRecipes({
         searchQuery: search as string,
         dietType: dietType as string,
         maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
       });
-      res.json(recipes);
+      
+      // Merge API and database recipes, prioritizing API recipes
+      const allRecipes = [...apiRecipes, ...dbRecipes];
+      
+      res.json(allRecipes);
     } catch (error) {
       console.error("Error getting recipes:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
 
-  app.get("/api/recipes/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/recipes/:id", async (req, res) => {
     try {
-      const user = req.user as any;
-      const recipe = await storage.getRecipeById(req.params.id, user.claims.sub);
+      // First try to get from API (for API-based recipe IDs starting with 'api-')
+      if (req.params.id.startsWith('api-')) {
+        const recipe = await getApiRecipeById(req.params.id);
+        if (recipe) {
+          return res.json(recipe);
+        }
+      }
+      
+      // Fallback to database recipes (for user-created recipes)
+      const userId = (req.user as any)?.claims?.sub;
+      const recipe = await storage.getRecipeById(req.params.id, userId);
       if (!recipe) {
         return res.status(404).json({ message: "Recipe not found" });
       }
@@ -122,19 +153,6 @@ export function registerRoutes(app: Express) {
       res.json(recipes);
     } catch (error) {
       console.error("Error getting recommended recipes:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.get("/api/recipes/:id", async (req, res) => {
-    try {
-      const recipe = await storage.getRecipeById(req.params.id);
-      if (!recipe) {
-        return res.status(404).json({ message: "Recipe not found" });
-      }
-      res.json(recipe);
-    } catch (error) {
-      console.error("Error getting recipe:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -299,14 +317,15 @@ export function registerRoutes(app: Express) {
       
       if (inventory.length > 0) {
         contextInfo += `Current kitchen inventory:\n`;
-        const itemsByLocation = inventory.reduce((acc, item) => {
-          if (!acc[item.location]) acc[item.location] = [];
-          acc[item.location].push(item);
+        const itemsByCategory = inventory.reduce((acc, item) => {
+          const category = item.category || 'other';
+          if (!acc[category]) acc[category] = [];
+          acc[category].push(item);
           return acc;
         }, {} as Record<string, typeof inventory>);
         
-        for (const [location, items] of Object.entries(itemsByLocation)) {
-          contextInfo += `${location}: ${items.map(i => i.name).join(', ')}\n`;
+        for (const [category, items] of Object.entries(itemsByCategory)) {
+          contextInfo += `${category}: ${items.map(i => i.name).join(', ')}\n`;
         }
         contextInfo += `\n`;
       }
