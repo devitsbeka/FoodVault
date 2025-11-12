@@ -38,6 +38,33 @@ Core entities include Users (profiles, preferences), Kitchen Inventory (items, e
 *   **AI-Powered Product Recommendations:** Commission-free, honest product suggestions using OpenAI GPT-5. Generates 5 best products per equipment type with detailed comparisons (features, prices, ratings, pros/cons). Triggered when user wishlists equipment. Frontend displays recommendations with images, star ratings, and expandable feature lists. Response format validated with defensive JSON parsing and error handling.
 *   **AI Chat Assistant:** Integrates OpenAI GPT-5 via Replit AI Integrations for context-aware recipe suggestions and shopping list generation.
 *   **Family Collaboration:** Supports family creation, member invitation, role-based access, shared meal plans, and family-wide inventory visibility. Authorization layer prevents cross-family meal plan access.
+*   **Inline Recipe Filters:** Airbnb-style inline filter buttons for cuisine (Italian, Mexican, Chinese, Japanese, Thai, French, Mediterranean, American, Indian) and meal type (breakfast, lunch, dinner, snack). Filters work with diet type, calories, and fridge ingredient matching.
+
+## Known Limitations
+
+### Recipe MealType Filtering
+The meal type filtering (breakfast, lunch, dinner, snack) has known edge cases due to external API constraints:
+
+**Issue:** Some recipes from external APIs (Spoonacular, API Ninjas) may not appear in lunch/dinner filtered results.
+
+**Root Cause:** External APIs use different schema structures:
+- Spoonacular returns `dishTypes` like "main course" which are ambiguous for lunch vs. dinner
+- API Ninjas has no native meal type support, requiring tag inference from titles/ingredients
+- Database recipes with `mealType=null` are filtered strictly
+
+**Current Behavior:**
+- Breakfast/snack filters work reliably (strict matching)
+- Lunch/dinner filters may miss some "main course" recipes from external APIs
+- Route-level post-filtering attempts to include `mealType=null` for lunch/dinner but has ordering/pagination edge cases
+
+**Future Improvement:** 
+Implement unified ingestion pipeline (Option C) to consolidate all recipe sources through database storage with proper tagging before filtering. This requires:
+- Schema updates for `recipeSource`, `sourceId`, `fetchedAt`, `mealTypeConfidence` (partially implemented)
+- Ingestion services to fetch/normalize/dedupe external recipes
+- Storage-layer filtering with null-friendly meal type semantics
+- Route refactoring to read exclusively from storage
+
+**Impact:** Functional for MVP - users can filter by meal type and see most relevant results. Perfect accuracy requires architectural refactoring.
 
 ## External Dependencies
 
