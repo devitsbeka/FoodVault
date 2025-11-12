@@ -67,6 +67,11 @@ export const storage = {
     return result[0] || null;
   },
 
+  async createUser(user: { email: string; password: string; firstName: string; lastName: string }): Promise<User> {
+    const result = await db.insert(users).values(user).returning();
+    return result[0];
+  },
+
   // Kitchen Inventory
   async getKitchenInventory(userId: string): Promise<KitchenInventory[]> {
     return await db.select().from(kitchenInventory).where(eq(kitchenInventory.userId, userId));
