@@ -70,9 +70,6 @@ export const familyMembers = pgTable("family_members", {
 
 // ============= RECIPES =============
 
-export const recipeSourceEnum = pgEnum('recipe_source', ['spoonacular', 'api_ninjas', 'user_created']);
-export const mealTypeConfidenceEnum = pgEnum('meal_type_confidence', ['explicit', 'inferred', 'ambiguous']);
-
 export const recipes = pgTable("recipes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name").notNull(),
@@ -89,18 +86,7 @@ export const recipes = pgTable("recipes", {
   instructions: text("instructions").array(),
   tags: text("tags").array(),
   createdAt: timestamp("created_at").defaultNow(),
-  
-  // Ingestion metadata for unified recipe pipeline
-  recipeSource: recipeSourceEnum("recipe_source").default('user_created'),
-  sourceId: varchar("source_id"), // External API ID (unique per source)
-  sourceUrl: varchar("source_url"), // Original URL if applicable
-  fetchedAt: timestamp("fetched_at").defaultNow(),
-  mealTypeConfidence: mealTypeConfidenceEnum("meal_type_confidence").default('ambiguous'),
-  dedupeSignature: varchar("dedupe_signature"), // For detecting cross-source duplicates
-}, (table) => [
-  unique().on(table.recipeSource, table.sourceId),
-  index("idx_recipes_dedupe_signature").on(table.dedupeSignature)
-]);
+});
 
 export const recipeRatings = pgTable("recipe_ratings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
