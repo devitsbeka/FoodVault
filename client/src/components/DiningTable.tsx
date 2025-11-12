@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 
 interface Seat {
   seatNumber: number;
-  position: { x: number; y: number };
+  position?: { x: number; y: number }; // Optional - calculated internally
   dietaryRestrictions: string[];
   recipeId?: string;
   recipeName?: string;

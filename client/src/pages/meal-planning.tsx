@@ -4,313 +4,314 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar as CalendarIcon, ChefHat, ThumbsUp, ThumbsDown, Check } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar as CalendarIcon, Users, ChefHat } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import type { MealPlan, Recipe, MealVote, User, Family } from "@shared/schema";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { DiningTable } from "@/components/DiningTable";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-type VoteWithUser = MealVote & {
-  user: User;
-};
+// Available dietary restrictions
+const DIETARY_RESTRICTIONS = [
+  "Vegetarian",
+  "Vegan",
+  "Gluten-Free",
+  "Dairy-Free",
+  "Nut-Free",
+  "Halal",
+  "Kosher",
+  "Low-Carb",
+] as const;
 
-type MealPlanWithDetails = MealPlan & {
-  recipe: Recipe;
-  votes: VoteWithUser[];
-  userVote?: VoteWithUser;
-  family?: Family | null;
-};
+interface SeatConfig {
+  seatNumber: number;
+  dietaryRestrictions: string[];
+  recipeId?: string;
+  recipeName?: string;
+  recipeImage?: string;
+}
 
 export default function MealPlanning() {
   const { toast } = useToast();
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+  const [seatCount, setSeatCount] = useState<number>(4); // Default to 4 people
+  const [seats, setSeats] = useState<SeatConfig[]>(
+    Array.from({ length: 4 }, (_, i) => ({
+      seatNumber: i + 1,
+      dietaryRestrictions: [],
+    }))
+  );
+  const [selectedSeatForConfig, setSelectedSeatForConfig] = useState<number | null>(null);
 
-  const { data: mealPlans, isLoading } = useQuery<MealPlanWithDetails[]>({
-    queryKey: ["/api/meal-plans"],
-  });
+  // Update seats when seat count changes
+  const handleSeatCountChange = (count: number) => {
+    setSeatCount(count);
+    setSeats(
+      Array.from({ length: count }, (_, i) => ({
+        seatNumber: i + 1,
+        dietaryRestrictions: seats[i]?.dietaryRestrictions || [],
+        recipeId: seats[i]?.recipeId,
+        recipeName: seats[i]?.recipeName,
+        recipeImage: seats[i]?.recipeImage,
+      }))
+    );
+  };
 
-  const voteMutation = useMutation<
-    { vote: MealVote; mealPlanApproved: boolean },
-    Error,
-    { mealPlanId: string; vote: boolean }
-  >({
-    mutationFn: async ({ mealPlanId, vote }: { mealPlanId: string; vote: boolean }) => {
-      return await apiRequest("POST", `/api/meal-plans/${mealPlanId}/vote`, { vote });
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/meal-plans"] });
-      
-      if (data.mealPlanApproved) {
-        toast({
-          title: "Meal approved!",
-          description: "This meal has reached the vote threshold and is now approved.",
-        });
-      } else {
-        toast({
-          title: "Vote recorded",
-          description: "Your vote has been counted.",
-        });
-      }
-    },
-    onError: (error: Error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to record vote. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
+  // Toggle dietary restriction for a seat
+  const toggleDietaryRestriction = (seatNumber: number, restriction: string) => {
+    setSeats(prev =>
+      prev.map(seat => {
+        if (seat.seatNumber === seatNumber) {
+          const hasRestriction = seat.dietaryRestrictions.includes(restriction);
+          return {
+            ...seat,
+            dietaryRestrictions: hasRestriction
+              ? seat.dietaryRestrictions.filter(r => r !== restriction)
+              : [...seat.dietaryRestrictions, restriction],
+          };
+        }
+        return seat;
+      })
+    );
+  };
 
-  const groupedMeals = mealPlans?.reduce((acc, meal) => {
-    const date = new Date(meal.scheduledFor).toISOString().split('T')[0];
-    if (!acc[date]) acc[date] = [];
-    acc[date].push(meal);
-    return acc;
-  }, {} as Record<string, MealPlanWithDetails[]>);
+  const handleSeatClick = (seatNumber: number) => {
+    setSelectedSeatForConfig(seatNumber);
+    toast({
+      title: `Seat ${seatNumber} selected`,
+      description: "Configure dietary restrictions below",
+    });
+  };
 
-  const dates = groupedMeals ? Object.keys(groupedMeals).sort() : [];
-  const todayMeals = groupedMeals?.[selectedDate] || [];
+  const handleAddRecipe = (seatNumber: number) => {
+    toast({
+      title: "Add Recipe",
+      description: `Opening recipe picker for Seat ${seatNumber}...`,
+    });
+    // TODO: Open recipe picker modal (task 8)
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-large-title">Meal Planning</h1>
         <p className="text-muted-foreground mt-1">
-          Plan your meals and vote with family members
+          Visual dining table planner with per-seat dietary restrictions
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-4 gap-6">
-        {/* Calendar Sidebar */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <CalendarIcon className="w-4 h-4" />
-              This Week
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {isLoading ? (
-              Array(7).fill(0).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full rounded-lg" />
-              ))
-            ) : dates.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No meals planned yet
-              </p>
-            ) : (
-              dates.map((date) => {
-                const mealsCount = groupedMeals![date].length;
-                const isSelected = date === selectedDate;
-                const dateObj = new Date(date);
-                
-                return (
-                  <button
-                    key={date}
-                    onClick={() => setSelectedDate(date)}
-                    className={`w-full p-3 rounded-lg text-left transition-colors ${
-                      isSelected
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover-elevate bg-card'
-                    }`}
-                    data-testid={`date-${date}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">
-                          {dateObj.toLocaleDateString('en-US', { weekday: 'short' })}
-                        </p>
-                        <p className={`text-xs ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
-                          {dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </p>
-                      </div>
-                      {mealsCount > 0 && (
-                        <Badge variant={isSelected ? "secondary" : "default"} className="text-xs">
-                          {mealsCount}
-                        </Badge>
-                      )}
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Meals for Selected Date */}
+      <div className="grid lg:grid-cols-12 gap-6">
+        {/* Configuration Sidebar */}
         <div className="lg:col-span-3 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-title-1">
-              {new Date(selectedDate).toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </h2>
-            <Button data-testid="button-add-meal">Add Meal</Button>
-          </div>
+          {/* Date Selector */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4" />
+                Date
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md bg-background"
+                data-testid="input-date"
+              />
+            </CardContent>
+          </Card>
 
-          {isLoading ? (
-            <div className="space-y-4">
-              {Array(3).fill(0).map((_, i) => (
-                <Skeleton key={i} className="h-48 rounded-xl" />
+          {/* Person Count Selector */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Number of People
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={seatCount.toString()}
+                onValueChange={(value) => handleSeatCountChange(parseInt(value))}
+              >
+                <SelectTrigger data-testid="select-seat-count">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Solo (1 person)</SelectItem>
+                  <SelectItem value="2">2 people</SelectItem>
+                  <SelectItem value="3">3 people</SelectItem>
+                  <SelectItem value="4">4 people</SelectItem>
+                  <SelectItem value="5">5 people</SelectItem>
+                  <SelectItem value="6">6 people</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
+          {/* Seat Configuration */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                {selectedSeatForConfig
+                  ? `Seat ${selectedSeatForConfig} Dietary Restrictions`
+                  : "Seat Configuration"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {selectedSeatForConfig ? (
+                <div className="space-y-3">
+                  {DIETARY_RESTRICTIONS.map((restriction) => {
+                    const seat = seats.find(s => s.seatNumber === selectedSeatForConfig);
+                    const isChecked = seat?.dietaryRestrictions.includes(restriction) || false;
+                    
+                    return (
+                      <div key={restriction} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`${selectedSeatForConfig}-${restriction}`}
+                          checked={isChecked}
+                          onCheckedChange={() =>
+                            toggleDietaryRestriction(selectedSeatForConfig, restriction)
+                          }
+                          data-testid={`checkbox-${selectedSeatForConfig}-${restriction.toLowerCase()}`}
+                        />
+                        <Label
+                          htmlFor={`${selectedSeatForConfig}-${restriction}`}
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          {restriction}
+                        </Label>
+                      </div>
+                    );
+                  })}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-4"
+                    onClick={() => setSelectedSeatForConfig(null)}
+                    data-testid="button-done-config"
+                  >
+                    Done
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Click a seat on the dining table to configure dietary restrictions
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Quick Stats */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Meal Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Seats configured:</span>
+                <Badge variant="secondary">{seatCount}</Badge>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Recipes assigned:</span>
+                <Badge variant="secondary">
+                  {seats.filter(s => s.recipeId).length}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Total restrictions:</span>
+                <Badge variant="secondary">
+                  {seats.reduce((sum, s) => sum + s.dietaryRestrictions.length, 0)}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Dining Table Visualization */}
+        <div className="lg:col-span-9">
+          <Card className="p-6">
+            <div className="text-center mb-4">
+              <h2 className="text-title-1">
+                {new Date(selectedDate).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Click seats to configure dietary restrictions, click + to assign recipes
+              </p>
+            </div>
+
+            <DiningTable
+              seatCount={seatCount}
+              seats={seats}
+              onSeatClick={handleSeatClick}
+              onAddRecipe={handleAddRecipe}
+            />
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-center gap-3 mt-6">
+              <Button variant="outline" data-testid="button-clear-all">
+                Clear All
+              </Button>
+              <Button data-testid="button-save-meal-plan">
+                <ChefHat className="w-4 h-4 mr-2" />
+                Save Meal Plan
+              </Button>
+            </div>
+          </Card>
+
+          {/* Seat Legend */}
+          <Card className="mt-4 p-4">
+            <h3 className="text-sm font-semibold mb-3">Seat Configuration Summary</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {seats.map((seat) => (
+                <div
+                  key={seat.seatNumber}
+                  className={`p-3 border rounded-lg hover-elevate cursor-pointer transition-all ${
+                    selectedSeatForConfig === seat.seatNumber
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border'
+                  }`}
+                  onClick={() => setSelectedSeatForConfig(seat.seatNumber)}
+                  data-testid={`seat-summary-${seat.seatNumber}`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Seat {seat.seatNumber}</span>
+                    {seat.recipeId && (
+                      <Badge variant="secondary" className="text-xs">
+                        Assigned
+                      </Badge>
+                    )}
+                  </div>
+                  {seat.dietaryRestrictions.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {seat.dietaryRestrictions.map((restriction, i) => (
+                        <Badge key={i} variant="outline" className="text-[10px] px-1 py-0">
+                          {restriction}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No restrictions</p>
+                  )}
+                </div>
               ))}
             </div>
-          ) : todayMeals.length === 0 ? (
-            <Card className="p-12">
-              <div className="text-center">
-                <ChefHat className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No meals planned</h3>
-                <p className="text-muted-foreground mb-4">
-                  Start planning your meals for this day
-                </p>
-                <Button>Add Your First Meal</Button>
-              </div>
-            </Card>
-          ) : (
-            <TooltipProvider>
-              <div className="space-y-4">
-                {todayMeals.map((meal) => {
-                  const upvotes = meal.votes.filter(v => v.vote).length;
-                  const downvotes = meal.votes.filter(v => !v.vote).length;
-                  const upvoters = meal.votes.filter(v => v.vote);
-                  const downvoters = meal.votes.filter(v => !v.vote);
-                  const userVoted = meal.userVote !== undefined;
-                  const userUpvoted = meal.userVote?.vote === true;
-                  const threshold = meal.family?.voteThreshold || 2;
-                  const progressPercent = Math.min((upvotes / threshold) * 100, 100);
-
-                  return (
-                    <Card key={meal.id} className={meal.isApproved ? 'border-primary/50' : ''} data-testid={`meal-plan-${meal.id}`}>
-                      <CardContent className="p-6">
-                        <div className="flex gap-4">
-                          <div className="w-32 h-32 bg-muted rounded-lg flex-shrink-0">
-                            {meal.recipe.imageUrl ? (
-                              <img src={meal.recipe.imageUrl} alt={meal.recipe.name} className="w-full h-full object-cover rounded-lg" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center">
-                                <ChefHat className="w-12 h-12 text-muted-foreground" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 space-y-4">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <h3 className="font-semibold text-lg">{meal.recipe.name}</h3>
-                                <p className="text-sm text-muted-foreground line-clamp-2">
-                                  {meal.recipe.description || "A delicious recipe"}
-                                </p>
-                              </div>
-                              {meal.isApproved && (
-                                <Badge className="gap-1" data-testid={`badge-approved-${meal.id}`}>
-                                  <Check className="w-3 h-3" />
-                                  Approved
-                                </Badge>
-                              )}
-                            </div>
-
-                            {/* Vote Progress Bar */}
-                            {!meal.isApproved && (
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                  <span>Vote Progress</span>
-                                  <span>{upvotes} of {threshold} needed</span>
-                                </div>
-                                <Progress value={progressPercent} className="h-2" data-testid={`progress-votes-${meal.id}`} />
-                              </div>
-                            )}
-
-                            {/* Voting Buttons & Voters */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Button
-                                variant={userUpvoted ? "default" : "outline"}
-                                size="sm"
-                                className="gap-2"
-                                onClick={() => voteMutation.mutate({ mealPlanId: meal.id, vote: true })}
-                                disabled={voteMutation.isPending}
-                                data-testid={`button-upvote-${meal.id}`}
-                              >
-                                <ThumbsUp className="w-4 h-4" />
-                                {upvotes}
-                              </Button>
-
-                              {/* Upvoter Avatars */}
-                              {upvoters.length > 0 && (
-                                <div className="flex -space-x-2">
-                                  {upvoters.map((voter) => (
-                                    <Tooltip key={voter.userId}>
-                                      <TooltipTrigger>
-                                        <Avatar className="w-6 h-6 border-2 border-background" data-testid={`avatar-upvoter-${voter.userId}`}>
-                                          <AvatarImage src={voter.user.profileImageUrl || undefined} />
-                                          <AvatarFallback className="text-xs">
-                                            {voter.user.firstName?.[0] || voter.user.email?.[0] || '?'}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>{voter.user.firstName || voter.user.email} voted for this</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  ))}
-                                </div>
-                              )}
-
-                              <Button
-                                variant={userVoted && !userUpvoted ? "destructive" : "outline"}
-                                size="sm"
-                                className="gap-2"
-                                onClick={() => voteMutation.mutate({ mealPlanId: meal.id, vote: false })}
-                                disabled={voteMutation.isPending}
-                                data-testid={`button-downvote-${meal.id}`}
-                              >
-                                <ThumbsDown className="w-4 h-4" />
-                                {downvotes}
-                              </Button>
-
-                              {/* Downvoter Avatars */}
-                              {downvoters.length > 0 && (
-                                <div className="flex -space-x-2">
-                                  {downvoters.map((voter) => (
-                                    <Tooltip key={voter.userId}>
-                                      <TooltipTrigger>
-                                        <Avatar className="w-6 h-6 border-2 border-background" data-testid={`avatar-downvoter-${voter.userId}`}>
-                                          <AvatarImage src={voter.user.profileImageUrl || undefined} />
-                                          <AvatarFallback className="text-xs">
-                                            {voter.user.firstName?.[0] || voter.user.email?.[0] || '?'}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>{voter.user.firstName || voter.user.email} voted against this</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </TooltipProvider>
-          )}
+          </Card>
         </div>
       </div>
     </div>
