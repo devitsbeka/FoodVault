@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { eq, and, gte, desc, sql, inArray, isNull, or } from "drizzle-orm";
-import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification } from "@shared/schema";
-import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications } from "@shared/schema";
+import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification, InsertMealPlanSeat, MealPlanSeat, InsertMealSeatAssignment, MealSeatAssignment } from "@shared/schema";
+import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications, mealPlanSeats, mealSeatAssignments } from "@shared/schema";
 import { normalizeIngredientName } from "./normalizationService";
 
 // Helper function to check if user has access to a shopping list (owner or family member)
@@ -927,5 +927,325 @@ export const storage = {
           isNull(notifications.readAt)
         )
       );
+  },
+
+  // ============= MEAL SEAT MANAGEMENT =============
+
+  async isUserFamilyMember(userId: string, familyId: string): Promise<boolean> {
+    const result = await db
+      .select()
+      .from(familyMembers)
+      .where(
+        and(
+          eq(familyMembers.userId, userId),
+          eq(familyMembers.familyId, familyId)
+        )
+      )
+      .limit(1);
+    return result.length > 0;
+  },
+
+  async userHasMealPlanAccess(userId: string, planId: string): Promise<boolean> {
+    // Get the meal plan
+    const plan = await db
+      .select()
+      .from(mealPlans)
+      .where(eq(mealPlans.id, planId))
+      .limit(1);
+
+    if (!plan.length) {
+      return false;
+    }
+
+    // Check if user owns the plan
+    if (plan[0].userId === userId) {
+      return true;
+    }
+
+    // Check if user is a family member
+    if (plan[0].familyId) {
+      return await this.isUserFamilyMember(userId, plan[0].familyId);
+    }
+
+    return false;
+  },
+
+  async getMealPlanByDate(params: {
+    userId?: string;
+    familyId?: string;
+    date: string;
+  }): Promise<{
+    mealPlan: MealPlan;
+    seats: Array<{
+      seat: MealPlanSeat;
+      assignment?: {
+        recipeId: string;
+        recipeName: string;
+        recipeImage: string | null;
+      };
+    }>;
+  } | null> {
+    // Find meal plan for the date
+    const conditions = [
+      sql`DATE(${mealPlans.scheduledFor}) = ${params.date}`
+    ];
+
+    if (params.familyId) {
+      conditions.push(eq(mealPlans.familyId, params.familyId));
+    } else if (params.userId) {
+      conditions.push(eq(mealPlans.userId, params.userId));
+    }
+
+    const mealPlan = await db
+      .select()
+      .from(mealPlans)
+      .where(and(...conditions))
+      .limit(1);
+
+    if (!mealPlan.length) {
+      return null;
+    }
+
+    // Get all seats for this meal plan
+    const seats = await db
+      .select()
+      .from(mealPlanSeats)
+      .where(eq(mealPlanSeats.mealPlanId, mealPlan[0].id))
+      .orderBy(mealPlanSeats.seatNumber);
+
+    // Get assignments and recipe details for each seat
+    const seatsWithAssignments = await Promise.all(
+      seats.map(async (seat) => {
+        const assignment = await db
+          .select({
+            assignment: mealSeatAssignments,
+            recipe: recipes,
+          })
+          .from(mealSeatAssignments)
+          .innerJoin(recipes, eq(mealSeatAssignments.recipeId, recipes.id))
+          .where(eq(mealSeatAssignments.seatId, seat.id))
+          .limit(1);
+
+        if (assignment.length > 0) {
+          return {
+            seat,
+            assignment: {
+              recipeId: assignment[0].recipe.id,
+              recipeName: assignment[0].recipe.name,
+              recipeImage: assignment[0].recipe.imageUrl,
+            },
+          };
+        }
+
+        return { seat };
+      })
+    );
+
+    return {
+      mealPlan: mealPlan[0],
+      seats: seatsWithAssignments,
+    };
+  },
+
+  async upsertMealPlanWithSeats(params: {
+    userId?: string;
+    familyId?: string;
+    date: string;
+    seats: Array<{
+      seatNumber: number;
+      dietaryRestrictions: string[];
+      recipeId?: string;
+    }>;
+  }): Promise<{
+    mealPlan: MealPlan;
+    seats: MealPlanSeat[];
+  }> {
+    return await db.transaction(async (tx) => {
+      // Check for existing meal plan on this date
+      const dateConditions = [
+        sql`DATE(${mealPlans.scheduledFor}) = ${params.date}`
+      ];
+
+      if (params.familyId) {
+        dateConditions.push(eq(mealPlans.familyId, params.familyId));
+      } else if (params.userId) {
+        dateConditions.push(eq(mealPlans.userId, params.userId));
+      }
+
+      const existing = await tx
+        .select()
+        .from(mealPlans)
+        .where(and(...dateConditions))
+        .limit(1);
+
+      let mealPlanId: string;
+      
+      // Determine recipeId for meal plan (use seat 1's recipe or first assigned recipe)
+      const primaryRecipeId = params.seats.find(s => s.recipeId)?.recipeId;
+      
+      if (!primaryRecipeId) {
+        throw new Error("At least one seat must have a recipe assigned");
+      }
+
+      if (existing.length > 0) {
+        // Update existing meal plan
+        const updated = await tx
+          .update(mealPlans)
+          .set({
+            recipeId: primaryRecipeId,
+          })
+          .where(eq(mealPlans.id, existing[0].id))
+          .returning();
+        mealPlanId = updated[0].id;
+      } else {
+        // Create new meal plan
+        const created = await tx
+          .insert(mealPlans)
+          .values({
+            userId: params.userId,
+            familyId: params.familyId,
+            recipeId: primaryRecipeId,
+            scheduledFor: new Date(params.date),
+          })
+          .returning();
+        mealPlanId = created[0].id;
+      }
+
+      // Get existing seats
+      const existingSeats = await tx
+        .select()
+        .from(mealPlanSeats)
+        .where(eq(mealPlanSeats.mealPlanId, mealPlanId));
+
+      // Delete seats that exceed the new seat count
+      const maxSeatNumber = Math.max(...params.seats.map(s => s.seatNumber));
+      const seatsToDelete = existingSeats.filter(s => s.seatNumber > maxSeatNumber);
+      
+      if (seatsToDelete.length > 0) {
+        await tx
+          .delete(mealPlanSeats)
+          .where(
+            inArray(
+              mealPlanSeats.id,
+              seatsToDelete.map(s => s.id)
+            )
+          );
+      }
+
+      // Upsert each seat
+      const updatedSeats: MealPlanSeat[] = [];
+      
+      for (const seatData of params.seats) {
+        const existingSeat = existingSeats.find(s => s.seatNumber === seatData.seatNumber);
+
+        let seat: MealPlanSeat;
+        
+        if (existingSeat) {
+          // Update existing seat
+          const updated = await tx
+            .update(mealPlanSeats)
+            .set({
+              dietaryRestrictions: seatData.dietaryRestrictions,
+            })
+            .where(eq(mealPlanSeats.id, existingSeat.id))
+            .returning();
+          seat = updated[0];
+        } else {
+          // Create new seat
+          const created = await tx
+            .insert(mealPlanSeats)
+            .values({
+              mealPlanId,
+              seatNumber: seatData.seatNumber,
+              dietaryRestrictions: seatData.dietaryRestrictions,
+            })
+            .returning();
+          seat = created[0];
+        }
+
+        updatedSeats.push(seat);
+
+        // Handle recipe assignment
+        if (seatData.recipeId) {
+          // Check if assignment exists
+          const existingAssignment = await tx
+            .select()
+            .from(mealSeatAssignments)
+            .where(eq(mealSeatAssignments.seatId, seat.id))
+            .limit(1);
+
+          if (existingAssignment.length > 0) {
+            // Update existing assignment
+            await tx
+              .update(mealSeatAssignments)
+              .set({ recipeId: seatData.recipeId })
+              .where(eq(mealSeatAssignments.seatId, seat.id));
+          } else {
+            // Create new assignment
+            await tx
+              .insert(mealSeatAssignments)
+              .values({
+                seatId: seat.id,
+                recipeId: seatData.recipeId,
+              });
+          }
+        } else {
+          // Clear assignment if recipeId is not provided
+          await tx
+            .delete(mealSeatAssignments)
+            .where(eq(mealSeatAssignments.seatId, seat.id));
+        }
+      }
+
+      // Get the final meal plan
+      const finalMealPlan = await tx
+        .select()
+        .from(mealPlans)
+        .where(eq(mealPlans.id, mealPlanId))
+        .limit(1);
+
+      return {
+        mealPlan: finalMealPlan[0],
+        seats: updatedSeats,
+      };
+    });
+  },
+
+  async assignRecipeToSeat(params: {
+    seatId: string;
+    recipeId: string;
+  }): Promise<MealSeatAssignment> {
+    // Check if assignment already exists
+    const existing = await db
+      .select()
+      .from(mealSeatAssignments)
+      .where(eq(mealSeatAssignments.seatId, params.seatId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // Update existing assignment
+      const updated = await db
+        .update(mealSeatAssignments)
+        .set({ recipeId: params.recipeId })
+        .where(eq(mealSeatAssignments.seatId, params.seatId))
+        .returning();
+      return updated[0];
+    } else {
+      // Create new assignment
+      const created = await db
+        .insert(mealSeatAssignments)
+        .values({
+          seatId: params.seatId,
+          recipeId: params.recipeId,
+        })
+        .returning();
+      return created[0];
+    }
+  },
+
+  async clearSeatAssignment(seatId: string): Promise<void> {
+    await db
+      .delete(mealSeatAssignments)
+      .where(eq(mealSeatAssignments.seatId, seatId));
   },
 };

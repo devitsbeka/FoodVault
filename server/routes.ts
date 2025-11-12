@@ -399,6 +399,141 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Meal Seat Management routes
+  app.get("/api/meal-plans/detail", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { date, familyId } = req.query;
+
+      if (!date || typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: "Valid date (YYYY-MM-DD) is required" });
+      }
+
+      // Authorization: If familyId is provided, verify user is a member
+      if (familyId) {
+        const isMember = await storage.isUserFamilyMember(user.claims.sub, familyId as string);
+        if (!isMember) {
+          return res.status(403).json({ message: "Forbidden: You are not a member of this family" });
+        }
+      }
+
+      const result = await storage.getMealPlanByDate({
+        userId: familyId ? undefined : user.claims.sub,
+        familyId: familyId as string | undefined,
+        date,
+      });
+
+      if (!result) {
+        return res.status(404).json({ message: "No meal plan found for this date" });
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error getting meal plan by date:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/meal-plans", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { date, familyId, seats } = req.body;
+
+      // Validation
+      if (!date || typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: "Valid date (YYYY-MM-DD) is required" });
+      }
+
+      if (!Array.isArray(seats) || seats.length === 0) {
+        return res.status(400).json({ message: "At least one seat is required" });
+      }
+
+      // Validate seats array
+      for (const seat of seats) {
+        if (typeof seat.seatNumber !== "number" || seat.seatNumber < 1 || seat.seatNumber > 6) {
+          return res.status(400).json({ message: "Seat number must be between 1 and 6" });
+        }
+        if (!Array.isArray(seat.dietaryRestrictions)) {
+          return res.status(400).json({ message: "Dietary restrictions must be an array" });
+        }
+      }
+
+      // Check if at least one seat has a recipe
+      const hasRecipe = seats.some(s => s.recipeId);
+      if (!hasRecipe) {
+        return res.status(400).json({ message: "At least one seat must have a recipe assigned" });
+      }
+
+      // Authorization: If familyId is provided, verify user is a member
+      if (familyId) {
+        const isMember = await storage.isUserFamilyMember(user.claims.sub, familyId);
+        if (!isMember) {
+          return res.status(403).json({ message: "Forbidden: You are not a member of this family" });
+        }
+      }
+
+      const result = await storage.upsertMealPlanWithSeats({
+        userId: familyId ? undefined : user.claims.sub,
+        familyId: familyId || undefined,
+        date,
+        seats,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error upserting meal plan with seats:", error);
+      if (error.message === "At least one seat must have a recipe assigned") {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/meal-plans/:planId/seats/:seatId/assignment", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { recipeId } = req.body;
+
+      if (!recipeId || typeof recipeId !== "string") {
+        return res.status(400).json({ message: "Recipe ID is required" });
+      }
+
+      // Authorization: Verify user has access to this meal plan
+      const hasAccess = await storage.userHasMealPlanAccess(user.claims.sub, req.params.planId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Forbidden: You do not have access to this meal plan" });
+      }
+
+      const assignment = await storage.assignRecipeToSeat({
+        seatId: req.params.seatId,
+        recipeId,
+      });
+
+      res.json(assignment);
+    } catch (error) {
+      console.error("Error assigning recipe to seat:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/meal-plans/:planId/seats/:seatId/assignment", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+
+      // Authorization: Verify user has access to this meal plan
+      const hasAccess = await storage.userHasMealPlanAccess(user.claims.sub, req.params.planId);
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Forbidden: You do not have access to this meal plan" });
+      }
+
+      await storage.clearSeatAssignment(req.params.seatId);
+      res.json({ message: "Assignment cleared successfully" });
+    } catch (error) {
+      console.error("Error clearing seat assignment:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // AI Chat routes
   app.get("/api/chat/messages", isAuthenticated, async (req, res) => {
     try {
