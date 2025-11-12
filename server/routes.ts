@@ -87,8 +87,9 @@ export function registerRoutes(app: Express) {
       const requestLimit = limit ? parseInt(limit as string) : 15; // Default to 15 recipes
       const matchThreshold = ingredientMatch ? parseInt(ingredientMatch as string) : 0;
       
-      // Fetch recipes from external API with fallback
+      // Fetch recipes from external API with automatic fallback
       let apiRecipes: any[] = [];
+      let apiSource = "api-ninjas";
       
       // Try api-ninjas first
       try {
@@ -100,9 +101,10 @@ export function registerRoutes(app: Express) {
           limit: apiLimit,
           offset: offset ? parseInt(offset as string) : 0,
         });
-        console.log(`Fetched ${apiRecipes.length} recipes from api-ninjas`);
+        console.log(`Fetched ${apiRecipes.length} recipes from ${apiSource}`);
       } catch (apiError) {
         console.log("api-ninjas failed, trying Spoonacular fallback...");
+        apiSource = "Spoonacular";
         // Fallback to Spoonacular if api-ninjas fails
         try {
           const apiLimit = matchThreshold > 0 ? Math.min(requestLimit * 2, 20) : requestLimit;
@@ -113,7 +115,7 @@ export function registerRoutes(app: Express) {
             limit: apiLimit,
             offset: offset ? parseInt(offset as string) : 0,
           });
-          console.log(`Fetched ${apiRecipes.length} recipes from Spoonacular`);
+          console.log(`Fetched ${apiRecipes.length} recipes from ${apiSource}`);
         } catch (spoonError) {
           console.error("Both API sources failed:", spoonError);
           // Continue with database recipes only

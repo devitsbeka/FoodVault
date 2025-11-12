@@ -186,44 +186,40 @@ export async function searchRecipes(params: {
   limit?: number;
   offset?: number;
 }): Promise<NormalizedRecipe[]> {
-  try {
-    const apiParams: Parameters<typeof fetchRecipesFromApi>[0] = {};
+  const apiParams: Parameters<typeof fetchRecipesFromApi>[0] = {};
 
-    // Search by title if query provided
-    if (params.searchQuery) {
-      apiParams.title = params.searchQuery;
-    }
-    // Search by ingredients if provided
-    else if (params.ingredients && params.ingredients.length > 0) {
-      apiParams.ingredients = params.ingredients.join(',');
-    }
-    // Default search for popular recipes
-    else {
-      apiParams.title = 'chicken';
-    }
+  // Search by title if query provided
+  if (params.searchQuery) {
+    apiParams.title = params.searchQuery;
+  }
+  // Search by ingredients if provided
+  else if (params.ingredients && params.ingredients.length > 0) {
+    apiParams.ingredients = params.ingredients.join(',');
+  }
+  // Default search for popular recipes
+  else {
+    apiParams.title = 'chicken';
+  }
 
-    const apiRecipes = await fetchRecipesFromApiMemoized(apiParams);
-    let recipes = apiRecipes.map(normalizeRecipe);
+  const apiRecipes = await fetchRecipesFromApiMemoized(apiParams);
+  let recipes = apiRecipes.map(normalizeRecipe);
 
-    // Apply frontend filters (skip if "all")
-    if (params.dietType && params.dietType !== 'all') {
-      recipes = recipes.filter(r => r.dietType === params.dietType);
-    }
+  // Apply frontend filters (skip if "all")
+  if (params.dietType && params.dietType !== 'all') {
+    recipes = recipes.filter(r => r.dietType === params.dietType);
+  }
 
-    if (params.maxCalories && params.maxCalories > 0) {
-      // Since API doesn't provide calories, we can't filter by it
-      // In a real app, you'd need a different API or calculate calories
-    }
+  if (params.maxCalories && params.maxCalories > 0) {
+    // Since API doesn't provide calories, we can't filter by it
+    // In a real app, you'd need a different API or calculate calories
+  }
 
-    // Apply limit/offset on client side since API doesn't support it
-    const offset = params.offset || 0;
-    const limit = params.limit || 10;
-    recipes = recipes.slice(offset, offset + limit);
+  // Apply limit/offset on client side since API doesn't support it
+  const offset = params.offset || 0;
+  const limit = params.limit || 10;
+  recipes = recipes.slice(offset, offset + limit);
 
-    return recipes;
-  } catch (error) {
-    console.error("Error fetching recipes from API:", error);
-    return [];
+  return recipes;
   }
 }
 
