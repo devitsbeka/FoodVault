@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { eq, and, gte, desc, sql, inArray, isNull, or } from "drizzle-orm";
-import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification, InsertMealPlanSeat, MealPlanSeat, InsertMealSeatAssignment, MealSeatAssignment } from "@shared/schema";
-import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications, mealPlanSeats, mealSeatAssignments } from "@shared/schema";
+import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification, InsertMealPlanSeat, MealPlanSeat, InsertMealSeatAssignment, MealSeatAssignment, InsertRecipeInteraction, RecipeInteraction } from "@shared/schema";
+import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications, mealPlanSeats, mealSeatAssignments, recipeInteractions } from "@shared/schema";
 import { normalizeIngredientName } from "./normalizationService";
 
 // Helper function to check if user has access to a shopping list (owner or family member)
@@ -298,6 +298,34 @@ export const storage = {
   async addRecipeRating(rating: InsertRecipeRating): Promise<RecipeRating> {
     const result = await db.insert(recipeRatings).values(rating).returning();
     return result[0];
+  },
+
+  // Recipe Interactions (for smart recommendations)
+  async trackRecipeView(userId: string, recipeId: string): Promise<void> {
+    await db.insert(recipeInteractions).values({
+      userId,
+      recipeId,
+      interactionType: 'view',
+    });
+  },
+
+  async trackRecipeSearch(userId: string, recipeId: string): Promise<void> {
+    await db.insert(recipeInteractions).values({
+      userId,
+      recipeId,
+      interactionType: 'search',
+    });
+  },
+
+  async getRecipeInteractionCount(userId: string, recipeId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(recipeInteractions)
+      .where(and(
+        eq(recipeInteractions.userId, userId),
+        eq(recipeInteractions.recipeId, recipeId)
+      ));
+    return Number(result[0]?.count || 0);
   },
 
   // Meal Plans
