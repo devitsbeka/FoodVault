@@ -232,8 +232,8 @@ export function registerRoutes(app: Express) {
         mealPlanId: req.params.id,
         userId: user.claims.sub,
       });
-      const vote = await storage.voteMealPlan(validatedData);
-      res.json(vote);
+      const result = await storage.voteMealPlan(validatedData);
+      res.json(result);
     } catch (error: any) {
       console.error("Error voting on meal plan:", error);
       if (error.name === "ZodError") {

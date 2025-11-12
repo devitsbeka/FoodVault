@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, gte, desc, sql } from "drizzle-orm";
+import { eq, and, gte, desc, sql, inArray } from "drizzle-orm";
 import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList } from "@shared/schema";
 import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists } from "@shared/schema";
 
@@ -189,9 +189,11 @@ export const storage = {
       .select({
         mealPlan: mealPlans,
         recipe: recipes,
+        family: families,
       })
       .from(mealPlans)
       .leftJoin(recipes, eq(mealPlans.recipeId, recipes.id))
+      .leftJoin(families, eq(mealPlans.familyId, families.id))
       .where(
         and(
           eq(mealPlans.userId, userId),
@@ -202,16 +204,34 @@ export const storage = {
 
     const mealPlanIds = results.map(r => r.mealPlan.id);
     
+    // Get votes with user info
     const votesResults = mealPlanIds.length > 0 
-      ? await db.select().from(mealVotes)
+      ? await db
+          .select({
+            vote: mealVotes,
+            user: users,
+          })
+          .from(mealVotes)
+          .leftJoin(users, eq(mealVotes.userId, users.id))
+          .where(inArray(mealVotes.mealPlanId, mealPlanIds))
       : [];
 
-    return results.map(r => ({
-      ...r.mealPlan,
-      recipe: r.recipe!,
-      votes: votesResults.filter(v => v.mealPlanId === r.mealPlan.id),
-      userVote: votesResults.find(v => v.mealPlanId === r.mealPlan.id && v.userId === userId),
-    }));
+    return results.map(r => {
+      const mealVotesWithUser = votesResults
+        .filter(v => v.vote.mealPlanId === r.mealPlan.id)
+        .map(v => ({
+          ...v.vote,
+          user: v.user!,
+        }));
+
+      return {
+        ...r.mealPlan,
+        recipe: r.recipe!,
+        family: r.family,
+        votes: mealVotesWithUser,
+        userVote: mealVotesWithUser.find(v => v.userId === userId),
+      };
+    });
   },
 
   async getUpcomingMeals(userId: string): Promise<any[]> {
@@ -246,7 +266,8 @@ export const storage = {
     return result[0];
   },
 
-  async voteMealPlan(vote: InsertMealVote): Promise<MealVote> {
+  async voteMealPlan(vote: InsertMealVote): Promise<{ vote: MealVote; mealPlanApproved: boolean }> {
+    // Upsert the vote
     const result = await db
       .insert(mealVotes)
       .values(vote)
@@ -255,7 +276,48 @@ export const storage = {
         set: { vote: vote.vote },
       })
       .returning();
-    return result[0];
+
+    // Check if meal should be auto-approved
+    const mealPlan = await db
+      .select({
+        mealPlan: mealPlans,
+        family: families,
+      })
+      .from(mealPlans)
+      .leftJoin(families, eq(mealPlans.familyId, families.id))
+      .where(eq(mealPlans.id, vote.mealPlanId))
+      .limit(1);
+
+    let mealPlanApproved = false;
+
+    if (mealPlan[0]) {
+      mealPlanApproved = mealPlan[0].mealPlan.isApproved;
+
+      if (!mealPlanApproved) {
+        // Count upvotes for this meal
+        const votes = await db
+          .select()
+          .from(mealVotes)
+          .where(eq(mealVotes.mealPlanId, vote.mealPlanId));
+
+        const upvotes = votes.filter(v => v.vote).length;
+        const threshold = mealPlan[0].family?.voteThreshold || 2;
+
+        // Auto-approve if threshold reached
+        if (upvotes >= threshold) {
+          await db
+            .update(mealPlans)
+            .set({ isApproved: true })
+            .where(eq(mealPlans.id, vote.mealPlanId));
+          mealPlanApproved = true;
+        }
+      }
+    }
+
+    return {
+      vote: result[0],
+      mealPlanApproved,
+    };
   },
 
   // Chat Messages

@@ -8,12 +8,20 @@ import { Calendar as CalendarIcon, ChefHat, ThumbsUp, ThumbsDown, Check } from "
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import type { MealPlan, Recipe, MealVote } from "@shared/schema";
+import type { MealPlan, Recipe, MealVote, User, Family } from "@shared/schema";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+type VoteWithUser = MealVote & {
+  user: User;
+};
 
 type MealPlanWithDetails = MealPlan & {
   recipe: Recipe;
-  votes: MealVote[];
-  userVote?: MealVote;
+  votes: VoteWithUser[];
+  userVote?: VoteWithUser;
+  family?: Family | null;
 };
 
 export default function MealPlanning() {
@@ -24,16 +32,28 @@ export default function MealPlanning() {
     queryKey: ["/api/meal-plans"],
   });
 
-  const voteMutation = useMutation({
+  const voteMutation = useMutation<
+    { vote: MealVote; mealPlanApproved: boolean },
+    Error,
+    { mealPlanId: string; vote: boolean }
+  >({
     mutationFn: async ({ mealPlanId, vote }: { mealPlanId: string; vote: boolean }) => {
       return await apiRequest("POST", `/api/meal-plans/${mealPlanId}/vote`, { vote });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/meal-plans"] });
-      toast({
-        title: "Vote recorded",
-        description: "Your vote has been counted.",
-      });
+      
+      if (data.mealPlanApproved) {
+        toast({
+          title: "Meal approved!",
+          description: "This meal has reached the vote threshold and is now approved.",
+        });
+      } else {
+        toast({
+          title: "Vote recorded",
+          description: "Your vote has been counted.",
+        });
+      }
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -162,77 +182,134 @@ export default function MealPlanning() {
               </div>
             </Card>
           ) : (
-            <div className="space-y-4">
-              {todayMeals.map((meal) => {
-                const upvotes = meal.votes.filter(v => v.vote).length;
-                const downvotes = meal.votes.filter(v => !v.vote).length;
-                const userVoted = meal.userVote !== undefined;
-                const userUpvoted = meal.userVote?.vote === true;
+            <TooltipProvider>
+              <div className="space-y-4">
+                {todayMeals.map((meal) => {
+                  const upvotes = meal.votes.filter(v => v.vote).length;
+                  const downvotes = meal.votes.filter(v => !v.vote).length;
+                  const upvoters = meal.votes.filter(v => v.vote);
+                  const downvoters = meal.votes.filter(v => !v.vote);
+                  const userVoted = meal.userVote !== undefined;
+                  const userUpvoted = meal.userVote?.vote === true;
+                  const threshold = meal.family?.voteThreshold || 2;
+                  const progressPercent = Math.min((upvotes / threshold) * 100, 100);
 
-                return (
-                  <Card key={meal.id} className={meal.isApproved ? 'border-primary/50' : ''} data-testid={`meal-plan-${meal.id}`}>
-                    <CardContent className="p-6">
-                      <div className="flex gap-4">
-                        <div className="w-32 h-32 bg-muted rounded-lg flex-shrink-0">
-                          {meal.recipe.imageUrl ? (
-                            <img src={meal.recipe.imageUrl} alt={meal.recipe.name} className="w-full h-full object-cover rounded-lg" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ChefHat className="w-12 h-12 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <h3 className="font-semibold text-lg">{meal.recipe.name}</h3>
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {meal.recipe.description || "A delicious recipe"}
-                              </p>
-                            </div>
-                            {meal.isApproved && (
-                              <Badge className="gap-1" data-testid={`badge-approved-${meal.id}`}>
-                                <Check className="w-3 h-3" />
-                                Approved
-                              </Badge>
+                  return (
+                    <Card key={meal.id} className={meal.isApproved ? 'border-primary/50' : ''} data-testid={`meal-plan-${meal.id}`}>
+                      <CardContent className="p-6">
+                        <div className="flex gap-4">
+                          <div className="w-32 h-32 bg-muted rounded-lg flex-shrink-0">
+                            {meal.recipe.imageUrl ? (
+                              <img src={meal.recipe.imageUrl} alt={meal.recipe.name} className="w-full h-full object-cover rounded-lg" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <ChefHat className="w-12 h-12 text-muted-foreground" />
+                              </div>
                             )}
                           </div>
+                          <div className="flex-1 space-y-4">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <h3 className="font-semibold text-lg">{meal.recipe.name}</h3>
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {meal.recipe.description || "A delicious recipe"}
+                                </p>
+                              </div>
+                              {meal.isApproved && (
+                                <Badge className="gap-1" data-testid={`badge-approved-${meal.id}`}>
+                                  <Check className="w-3 h-3" />
+                                  Approved
+                                </Badge>
+                              )}
+                            </div>
 
-                          <div className="flex items-center gap-2 mt-4">
-                            <Button
-                              variant={userUpvoted ? "default" : "outline"}
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => voteMutation.mutate({ mealPlanId: meal.id, vote: true })}
-                              disabled={voteMutation.isPending}
-                              data-testid={`button-upvote-${meal.id}`}
-                            >
-                              <ThumbsUp className="w-4 h-4" />
-                              {upvotes}
-                            </Button>
-                            <Button
-                              variant={userVoted && !userUpvoted ? "destructive" : "outline"}
-                              size="sm"
-                              className="gap-2"
-                              onClick={() => voteMutation.mutate({ mealPlanId: meal.id, vote: false })}
-                              disabled={voteMutation.isPending}
-                              data-testid={`button-downvote-${meal.id}`}
-                            >
-                              <ThumbsDown className="w-4 h-4" />
-                              {downvotes}
-                            </Button>
+                            {/* Vote Progress Bar */}
+                            {!meal.isApproved && (
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span>Vote Progress</span>
+                                  <span>{upvotes} of {threshold} needed</span>
+                                </div>
+                                <Progress value={progressPercent} className="h-2" data-testid={`progress-votes-${meal.id}`} />
+                              </div>
+                            )}
 
-                            <span className="text-sm text-muted-foreground ml-auto">
-                              {upvotes + downvotes} vote{upvotes + downvotes !== 1 ? 's' : ''}
-                            </span>
+                            {/* Voting Buttons & Voters */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Button
+                                variant={userUpvoted ? "default" : "outline"}
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => voteMutation.mutate({ mealPlanId: meal.id, vote: true })}
+                                disabled={voteMutation.isPending}
+                                data-testid={`button-upvote-${meal.id}`}
+                              >
+                                <ThumbsUp className="w-4 h-4" />
+                                {upvotes}
+                              </Button>
+
+                              {/* Upvoter Avatars */}
+                              {upvoters.length > 0 && (
+                                <div className="flex -space-x-2">
+                                  {upvoters.map((voter) => (
+                                    <Tooltip key={voter.userId}>
+                                      <TooltipTrigger>
+                                        <Avatar className="w-6 h-6 border-2 border-background" data-testid={`avatar-upvoter-${voter.userId}`}>
+                                          <AvatarImage src={voter.user.profileImageUrl || undefined} />
+                                          <AvatarFallback className="text-xs">
+                                            {voter.user.firstName?.[0] || voter.user.email?.[0] || '?'}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>{voter.user.firstName || voter.user.email} voted for this</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ))}
+                                </div>
+                              )}
+
+                              <Button
+                                variant={userVoted && !userUpvoted ? "destructive" : "outline"}
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => voteMutation.mutate({ mealPlanId: meal.id, vote: false })}
+                                disabled={voteMutation.isPending}
+                                data-testid={`button-downvote-${meal.id}`}
+                              >
+                                <ThumbsDown className="w-4 h-4" />
+                                {downvotes}
+                              </Button>
+
+                              {/* Downvoter Avatars */}
+                              {downvoters.length > 0 && (
+                                <div className="flex -space-x-2">
+                                  {downvoters.map((voter) => (
+                                    <Tooltip key={voter.userId}>
+                                      <TooltipTrigger>
+                                        <Avatar className="w-6 h-6 border-2 border-background" data-testid={`avatar-downvoter-${voter.userId}`}>
+                                          <AvatarImage src={voter.user.profileImageUrl || undefined} />
+                                          <AvatarFallback className="text-xs">
+                                            {voter.user.firstName?.[0] || voter.user.email?.[0] || '?'}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>{voter.user.firstName || voter.user.email} voted against this</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </TooltipProvider>
           )}
         </div>
       </div>
