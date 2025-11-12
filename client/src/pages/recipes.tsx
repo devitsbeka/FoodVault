@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, SlidersHorizontal, Clock, Flame, ChefHat, Star } from "lucide-react";
 import { Link } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import type { Recipe } from "@shared/schema";
 
 type RecipeWithRating = Recipe & {
@@ -19,6 +21,7 @@ type RecipeWithRating = Recipe & {
 };
 
 export default function Recipes() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
     dietType: "all",
@@ -59,6 +62,22 @@ export default function Recipes() {
     { value: "paleo", label: "Paleo" },
     { value: "gluten-free", label: "Gluten-Free" },
   ];
+
+  // Track recipe searches for smart recommendations
+  useEffect(() => {
+    if (recipes && recipes.length > 0 && user && (searchQuery || filters.dietType !== "all" || filters.ingredientMatch > 0)) {
+      // Track first 5 recipes shown in search results
+      const recipesToTrack = recipes.slice(0, 5);
+      recipesToTrack.forEach(recipe => {
+        apiRequest("POST", "/api/recipe-interactions", {
+          recipeId: recipe.id,
+          interactionType: "search",
+        }).catch(() => {
+          // Silently fail - tracking shouldn't disrupt user experience
+        });
+      });
+    }
+  }, [recipes, user, searchQuery, filters.dietType, filters.ingredientMatch]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
