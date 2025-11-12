@@ -66,12 +66,6 @@ function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center gap-3 px-4 py-3">
-              <Avatar className="w-10 h-10">
-                <AvatarImage src={user?.profileImageUrl || undefined} className="object-cover" />
-                <AvatarFallback>
-                  {user?.firstName?.[0]}{user?.lastName?.[0]}
-                </AvatarFallback>
-              </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">
                   {user?.firstName} {user?.lastName}
@@ -80,15 +74,15 @@ function AppSidebar() {
                   {user?.email}
                 </p>
               </div>
+              <UserButton 
+                data-testid="button-user-menu"
+                appearance={{
+                  elements: {
+                    avatarBox: "w-10 h-10"
+                  }
+                }}
+              />
             </div>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild data-testid="button-logout">
-              <a href="/api/logout">
-                <LogOut className="w-4 h-4" />
-                <span>Log Out</span>
-              </a>
-            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

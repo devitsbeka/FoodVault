@@ -16,7 +16,7 @@ The frontend is built using React 18+ with TypeScript, leveraging Vite for fast 
 
 ### Backend Architecture
 
-The backend is an Express.js server in TypeScript, providing a RESTful API. Authentication uses Replit Auth via OpenID Connect and Passport.js, with session management handled by `connect-pg-simple`. The database layer employs Drizzle ORM with Neon serverless PostgreSQL, ensuring type-safe operations and a schema-first design validated by Zod. API routes are organized by feature areas, with robust error handling and authentication middleware.
+The backend is an Express.js server in TypeScript, providing a RESTful API. Authentication uses Clerk via `@clerk/express` middleware, providing secure user authentication with social login support (Google, GitHub, etc.). The database layer employs Drizzle ORM with Neon serverless PostgreSQL, ensuring type-safe operations and a schema-first design validated by Zod. API routes are organized by feature areas, with robust error handling and authentication middleware.
 
 ### Data Models
 
@@ -70,7 +70,7 @@ Implement unified ingestion pipeline (Option C) to consolidate all recipe source
 
 ### Third-Party Services
 
-*   **Authentication:** Replit Auth (OpenID Connect provider).
+*   **Authentication:** Clerk (provides secure authentication with social login support).
 *   **Database:** Neon Serverless PostgreSQL.
 *   **AI Integration:** OpenAI API (GPT-5 model) via Replit AI Integrations.
 *   **Recipe Images:** Spoonacular API for ingredient image auto-fetching and autocomplete suggestions.
@@ -80,15 +80,15 @@ Implement unified ingestion pipeline (Option C) to consolidate all recipe source
 
 *   **UI Components:** `@radix-ui/*`, `class-variance-authority`, `tailwindcss`, `lucide-react`, `cmdk`.
 *   **Data & State:** `@tanstack/react-query`, `drizzle-orm`, `drizzle-zod`, `zod`, `@hookform/resolvers`.
-*   **Authentication & Session:** `openid-client`, `passport`, `express-session`, `connect-pg-simple`.
+*   **Authentication:** `@clerk/clerk-react`, `@clerk/express`.
 *   **Development Tools:** `vite`, `tsx`, `esbuild`, `@replit/vite-plugin-*`.
 
 ### Environment Variables Required
 
 *   `DATABASE_URL`
-*   `SESSION_SECRET`
-*   `REPL_ID`
-*   `ISSUER_URL`
+*   `CLERK_PUBLISHABLE_KEY`
+*   `CLERK_SECRET_KEY`
+*   `VITE_CLERK_PUBLISHABLE_KEY`
 *   `AI_INTEGRATIONS_OPENAI_BASE_URL`
 *   `AI_INTEGRATIONS_OPENAI_API_KEY`
 *   `RECIPE_API_KEY`
