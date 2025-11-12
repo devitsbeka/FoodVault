@@ -130,8 +130,13 @@ export function registerRoutes(app: Express) {
         maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
       });
       
-      // Merge all recipes
-      let allRecipes = [...apiRecipes, ...dbRecipes];
+      // Prioritize recipes with images: Spoonacular first, then DB recipes with images, then others
+      const recipesWithImages = apiRecipes.filter((r: any) => r.imageUrl);
+      const dbWithImages = dbRecipes.filter((r: any) => r.imageUrl);
+      const recipesWithoutImages = [...apiRecipes.filter((r: any) => !r.imageUrl), ...dbRecipes.filter((r: any) => !r.imageUrl)];
+      
+      // Merge: prioritize image-bearing recipes
+      let allRecipes = [...recipesWithImages, ...dbWithImages, ...recipesWithoutImages];
       
       // Apply ingredient matching filter if requested and user is authenticated
       if (matchThreshold > 0 && req.user) {
@@ -150,7 +155,7 @@ export function registerRoutes(app: Express) {
             .map((recipe: any) => {
               const ingredients = recipe.ingredients || [];
               if (ingredients.length === 0) {
-                return { ...recipe, matchPercentage: 0 };
+                return { ...recipe, matchPercentage: 0, hasImage: !!recipe.imageUrl };
               }
               
               const ownedCount = ingredients.filter((ing: any) => {
@@ -159,10 +164,14 @@ export function registerRoutes(app: Express) {
               }).length;
               
               const matchPercentage = Math.round((ownedCount / ingredients.length) * 100);
-              return { ...recipe, matchPercentage };
+              return { ...recipe, matchPercentage, hasImage: !!recipe.imageUrl };
             })
             .filter((recipe: any) => recipe.matchPercentage >= matchThreshold)
-            .sort((a: any, b: any) => (b.matchPercentage || 0) - (a.matchPercentage || 0)); // Sort by match % desc
+            .sort((a: any, b: any) => {
+              // Sort by hasImage first (images priority), then by matchPercentage
+              if (a.hasImage !== b.hasImage) return a.hasImage ? -1 : 1;
+              return (b.matchPercentage || 0) - (a.matchPercentage || 0);
+            });
         }
       }
       

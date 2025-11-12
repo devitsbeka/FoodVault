@@ -187,41 +187,36 @@ export async function searchSpoonacularRecipes(params: {
   limit?: number;
   offset?: number;
 }): Promise<NormalizedRecipe[]> {
-  try {
-    const spoonacularParams: Parameters<typeof fetchSpoonacularRecipes>[0] = {
-      number: params.limit || 10,
-      offset: params.offset || 0,
-      addRecipeInformation: true,
-      addRecipeNutrition: true,
-      fillIngredients: true,
-    };
+  const spoonacularParams: Parameters<typeof fetchSpoonacularRecipes>[0] = {
+    number: params.limit || 15, // Default to 15 recipes to ensure we get 10+ results
+    offset: params.offset || 0,
+    addRecipeInformation: true,
+    addRecipeNutrition: true,
+    fillIngredients: true,
+  };
 
-    if (params.searchQuery) {
-      spoonacularParams.query = params.searchQuery;
-    }
-    
-    if (params.dietType && params.dietType !== 'all') {
-      // Map our diet types to Spoonacular's
-      const dietMap: Record<string, string> = {
-        'vegetarian': 'vegetarian',
-        'vegan': 'vegan',
-        'keto': 'ketogenic',
-        'paleo': 'paleo',
-        'gluten-free': 'gluten free'
-      };
-      spoonacularParams.diet = dietMap[params.dietType] || params.dietType;
-    }
-
-    if (params.maxCalories) {
-      spoonacularParams.maxCalories = params.maxCalories;
-    }
-
-    const recipes = await fetchSpoonacularRecipesMemoized(spoonacularParams);
-    return recipes.map(normalizeSpoonacularRecipe);
-  } catch (error) {
-    console.error("Error fetching from Spoonacular:", error);
-    return [];
+  if (params.searchQuery) {
+    spoonacularParams.query = params.searchQuery;
   }
+  
+  if (params.dietType && params.dietType !== 'all') {
+    // Map our diet types to Spoonacular's
+    const dietMap: Record<string, string> = {
+      'vegetarian': 'vegetarian',
+      'vegan': 'vegan',
+      'keto': 'ketogenic',
+      'paleo': 'paleo',
+      'gluten-free': 'gluten free'
+    };
+    spoonacularParams.diet = dietMap[params.dietType] || params.dietType;
+  }
+
+  if (params.maxCalories) {
+    spoonacularParams.maxCalories = params.maxCalories;
+  }
+
+  const recipes = await fetchSpoonacularRecipesMemoized(spoonacularParams);
+  return recipes.map(normalizeSpoonacularRecipe);
 }
 
 // Get single recipe by ID
