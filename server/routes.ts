@@ -110,8 +110,8 @@ export function registerRoutes(app: Express) {
       if (!imageUrl && validatedData.owned && (validatedData.brand || validatedData.model)) {
         imageUrl = await getProductImageUrl(
           validatedData.itemType,
-          validatedData.brand,
-          validatedData.model
+          validatedData.brand || undefined,
+          validatedData.model || undefined
         );
       }
       
