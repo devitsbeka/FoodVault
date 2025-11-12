@@ -5,6 +5,7 @@ import { isAuthenticated } from "./replitAuth";
 import { getChatCompletion } from "./openai";
 import { insertKitchenInventorySchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
+import { normalizeIngredientName } from "./normalizationService";
 
 // Shared error response helper
 interface ErrorResponse {
@@ -88,11 +89,13 @@ export function registerRoutes(app: Express) {
       // Fetch recipes from external API
       let apiRecipes: any[] = [];
       try {
+        // Fetch more recipes if filtering by ingredients (up to max of 20)
+        const apiLimit = matchThreshold > 0 ? Math.min(requestLimit * 2, 20) : requestLimit;
         apiRecipes = await searchRecipes({
           searchQuery: search as string,
           dietType: dietType as string,
           maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
-          limit: requestLimit * 2, // Fetch more since we'll filter by ingredients
+          limit: apiLimit,
           offset: offset ? parseInt(offset as string) : 0,
         });
       } catch (apiError) {

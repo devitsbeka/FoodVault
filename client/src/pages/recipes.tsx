@@ -23,7 +23,7 @@ export default function Recipes() {
   const [filters, setFilters] = useState({
     dietType: "all",
     maxCalories: 2000,
-    ingredientMatch: 50,
+    ingredientMatch: 0, // Off by default
   });
 
   const { data: recipes, isLoading, error } = useQuery<RecipeWithRating[]>({
@@ -33,8 +33,8 @@ export default function Recipes() {
       if (searchQuery) params.append("search", searchQuery);
       if (filters.dietType !== "all") params.append("dietType", filters.dietType);
       if (filters.maxCalories < 2000) params.append("maxCalories", filters.maxCalories.toString());
-      // Only send ingredientMatch if it's not the default value
-      if (filters.ingredientMatch > 0 && filters.ingredientMatch !== 50) {
+      // Only send ingredientMatch if it's enabled (> 0)
+      if (filters.ingredientMatch > 0) {
         params.append("ingredientMatch", filters.ingredientMatch.toString());
       }
       
@@ -131,32 +131,47 @@ export default function Recipes() {
               </div>
 
               <div>
-                <Label>Ingredient Match Threshold</Label>
-                <div className="pt-2">
+                <Label className="flex items-center gap-2">
+                  <ChefHat className="w-4 h-4 text-primary" />
+                  Smart Recipes - Fridge Assisted
+                </Label>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Filter recipes based on ingredients you already have in your kitchen
+                </p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Minimum overlap:</span>
+                    <span className="font-medium">{filters.ingredientMatch}%</span>
+                  </div>
                   <Slider
                     value={[filters.ingredientMatch]}
                     onValueChange={([value]) => setFilters({ ...filters, ingredientMatch: value })}
                     min={0}
                     max={100}
-                    step={10}
+                    step={25}
                     data-testid="slider-ingredient-match"
                   />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    At least {filters.ingredientMatch}% of ingredients on hand
-                  </p>
+                  <div className="flex justify-between text-xs text-muted-foreground px-1">
+                    <span>Off</span>
+                    <span>25%</span>
+                    <span>50%</span>
+                    <span>75%</span>
+                    <span>100%</span>
+                  </div>
+                  {filters.ingredientMatch > 0 && (
+                    <p className="text-xs text-muted-foreground italic">
+                      Showing recipes with at least {filters.ingredientMatch}% of ingredients in your kitchen
+                    </p>
+                  )}
                 </div>
               </div>
-
-              <Button className="w-full" onClick={() => {}}>
-                Apply Filters
-              </Button>
             </div>
           </SheetContent>
         </Sheet>
       </div>
 
       {/* Active Filters */}
-      {(filters.dietType !== "all" || filters.maxCalories !== 2000 || filters.ingredientMatch !== 50) && (
+      {(filters.dietType !== "all" || filters.maxCalories !== 2000 || filters.ingredientMatch > 0) && (
         <div className="flex gap-2 flex-wrap">
           <span className="text-sm text-muted-foreground">Active filters:</span>
           {filters.dietType !== "all" && (
@@ -169,15 +184,15 @@ export default function Recipes() {
               Max {filters.maxCalories} cal
             </Badge>
           )}
-          {filters.ingredientMatch !== 50 && (
+          {filters.ingredientMatch > 0 && (
             <Badge variant="secondary" data-testid="badge-match-filter">
-              {filters.ingredientMatch}% match
+              {filters.ingredientMatch}% fridge match
             </Badge>
           )}
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setFilters({ dietType: "all", maxCalories: 2000, ingredientMatch: 50 })}
+            onClick={() => setFilters({ dietType: "all", maxCalories: 2000, ingredientMatch: 0 })}
             className="h-6 px-2 text-xs"
             data-testid="button-clear-filters"
           >
