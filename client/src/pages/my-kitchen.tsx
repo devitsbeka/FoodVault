@@ -370,12 +370,19 @@ export default function MyKitchen() {
                         {reviewQueue.map((item) => (
                           <Card key={item.id} className="p-4" data-testid={`review-item-${item.id}`}>
                             <div className="flex items-center justify-between gap-4">
-                              <div className="flex-1">
-                                <h3 className="font-medium">{item.name}</h3>
-                                <p className="text-sm text-muted-foreground">
-                                  {item.quantity} {item.unit || "unit(s)"}
-                                  {item.categoryGuess && ` • Suggested: ${item.categoryGuess}`}
-                                </p>
+                              <div className="flex items-center gap-3 flex-1">
+                                <IngredientImage 
+                                  imageUrl={item.imageUrl} 
+                                  name={item.name} 
+                                  size={40}
+                                />
+                                <div className="flex-1">
+                                  <h3 className="font-medium">{item.name}</h3>
+                                  <p className="text-sm text-muted-foreground">
+                                    {item.quantity} {item.unit || "unit(s)"}
+                                    {item.categoryGuess && ` • Suggested: ${item.categoryGuess}`}
+                                  </p>
+                                </div>
                               </div>
                               <div className="flex gap-2">
                                 <Button
