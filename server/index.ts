@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import { registerRoutes } from "./routes";
+import { setupAuth } from "./replitAuth";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -47,7 +49,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const server = await registerRoutes(app);
+  await setupAuth(app);
+  registerRoutes(app);
+  
+  const server = createServer(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
