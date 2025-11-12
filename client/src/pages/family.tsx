@@ -121,6 +121,39 @@ export default function FamilyPage() {
     inviteMemberMutation.mutate(inviteEmail.trim().toLowerCase());
   };
 
+  const seedFamilyMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/dev/seed-family", {});
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/family"] });
+      toast({
+        title: "Test members added",
+        description: data.message || "Test family members have been created.",
+      });
+    },
+    onError: (error: any) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      
+      const errorMessage = error.message || "Failed to seed test members.";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -191,48 +224,62 @@ export default function FamilyPage() {
             {family.members.length} member{family.members.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="gap-2" data-testid="button-invite-member">
-              <UserPlus className="w-4 h-4" />
-              Invite Member
+        <div className="flex gap-2">
+          {import.meta.env.DEV && (
+            <Button
+              variant="secondary"
+              className="gap-2"
+              onClick={() => seedFamilyMutation.mutate()}
+              disabled={seedFamilyMutation.isPending}
+              data-testid="button-seed-family"
+            >
+              <Users className="w-4 h-4" />
+              {seedFamilyMutation.isPending ? "Adding..." : "Seed Test Members"}
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Family Member</DialogTitle>
-              <DialogDescription>
-                Add an existing user to your family by entering their email address.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="invite-email">Email Address</Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  placeholder="member@example.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleInviteMember();
-                    }
-                  }}
-                  data-testid="input-invite-email"
-                />
-              </div>
-              <Button
-                onClick={handleInviteMember}
-                className="w-full"
-                disabled={inviteMemberMutation.isPending}
-                data-testid="button-submit-invite"
-              >
-                {inviteMemberMutation.isPending ? "Adding..." : "Add Member"}
+          )}
+          <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2" data-testid="button-invite-member">
+                <UserPlus className="w-4 h-4" />
+                Invite Member
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Family Member</DialogTitle>
+                <DialogDescription>
+                  Add an existing user to your family by entering their email address.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="invite-email">Email Address</Label>
+                  <Input
+                    id="invite-email"
+                    type="email"
+                    placeholder="member@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleInviteMember();
+                      }
+                    }}
+                    data-testid="input-invite-email"
+                  />
+                </div>
+                <Button
+                  onClick={handleInviteMember}
+                  className="w-full"
+                  disabled={inviteMemberMutation.isPending}
+                  data-testid="button-submit-invite"
+                >
+                  {inviteMemberMutation.isPending ? "Adding..." : "Add Member"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
