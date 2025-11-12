@@ -285,9 +285,61 @@ export const storage = {
   },
 
   async getRecommendedRecipes(userId: string): Promise<Recipe[]> {
+    // Get user's kitchen inventory (normalized names)
     const userInventory = await this.getKitchenInventory(userId);
-    const allRecipes = await db.select().from(recipes).limit(10);
-    return allRecipes;
+    const userIngredientNames = new Set(
+      userInventory.map(item => item.normalizedName).filter(Boolean)
+    );
+
+    // Get all recipes with their ingredients
+    const allRecipes = await db.select().from(recipes);
+
+    // Get user's recipe interactions (views + searches)
+    const interactions = await db
+      .select({
+        recipeId: recipeInteractions.recipeId,
+        count: sql<number>`count(*)`,
+      })
+      .from(recipeInteractions)
+      .where(eq(recipeInteractions.userId, userId))
+      .groupBy(recipeInteractions.recipeId);
+
+    const interactionMap = new Map(
+      interactions.map(i => [i.recipeId, Number(i.count)])
+    );
+
+    // Score each recipe
+    const scoredRecipes = allRecipes.map(recipe => {
+      // Calculate ingredient match score (0-1)
+      const recipeIngredients = (recipe.ingredients as any) || [];
+      const matchedIngredients = recipeIngredients.filter((ing: any) => {
+        const normalized = normalizeIngredientName(ing.name);
+        return userIngredientNames.has(normalized);
+      });
+      const ingredientMatchScore = recipeIngredients.length > 0
+        ? matchedIngredients.length / recipeIngredients.length
+        : 0;
+
+      // Get interaction frequency (views + searches)
+      const interactionCount = interactionMap.get(recipe.id) || 0;
+      
+      // Boost score: base on interactions, multiply by ingredient match
+      // Add 1 to interaction count to give new recipes a chance
+      const score = (interactionCount + 1) * (1 + ingredientMatchScore * 2);
+
+      return {
+        recipe,
+        score,
+        ingredientMatchScore,
+        interactionCount,
+      };
+    });
+
+    // Sort by score (highest first) and return top 10
+    return scoredRecipes
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10)
+      .map(item => item.recipe);
   },
 
   // Recipe Ratings
