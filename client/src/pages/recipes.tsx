@@ -65,7 +65,12 @@ export default function Recipes() {
 
   // Track recipe searches for smart recommendations
   useEffect(() => {
-    if (recipes && recipes.length > 0 && user && (searchQuery || filters.dietType !== "all" || filters.ingredientMatch > 0)) {
+    const hasActiveSearch = searchQuery || 
+                           filters.dietType !== "all" || 
+                           filters.maxCalories < 2000 || 
+                           filters.ingredientMatch > 0;
+    
+    if (recipes && recipes.length > 0 && user && hasActiveSearch) {
       // Track first 5 recipes shown in search results
       const recipesToTrack = recipes.slice(0, 5);
       recipesToTrack.forEach(recipe => {
@@ -77,7 +82,7 @@ export default function Recipes() {
         });
       });
     }
-  }, [recipes, user, searchQuery, filters.dietType, filters.ingredientMatch]);
+  }, [recipes, user, searchQuery, filters.dietType, filters.maxCalories, filters.ingredientMatch]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
