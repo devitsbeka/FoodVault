@@ -26,6 +26,24 @@ function sendError(res: Response, status: number, message: string, code?: string
 
 export function registerRoutes(app: Express) {
   // Auth routes
+  app.post("/api/auth/sync", isAuthenticated, async (req, res) => {
+    try {
+      const { userId } = getAuth(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const { email, firstName, lastName, imageUrl } = req.body;
+      
+      await syncClerkUser(userId, email, firstName, lastName, imageUrl);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error syncing user:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/auth/user", isAuthenticated, async (req, res) => {
     try {
       const { userId } = getAuth(req);
