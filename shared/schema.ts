@@ -196,6 +196,24 @@ export const inventoryReviewQueue = pgTable("inventory_review_queue", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ============= KITCHEN EQUIPMENT =============
+
+export const kitchenLocationEnum = pgEnum('kitchen_location', ['indoor', 'outdoor']);
+
+export const kitchenEquipment = pgTable("kitchen_equipment", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  itemType: varchar("item_type").notNull(), // toaster, blender, grill, etc.
+  location: kitchenLocationEnum("location").notNull().default('indoor'),
+  owned: boolean("owned").notNull().default(false),
+  brand: varchar("brand"),
+  model: varchar("model"),
+  imageUrl: varchar("image_url"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // ============= NOTIFICATIONS =============
 
 export const notificationTypeEnum = pgEnum('notification_type', [
@@ -376,6 +394,13 @@ export const inventoryReviewQueueRelations = relations(inventoryReviewQueue, ({ 
   }),
 }));
 
+export const kitchenEquipmentRelations = relations(kitchenEquipment, ({ one }) => ({
+  user: one(users, {
+    fields: [kitchenEquipment.userId],
+    references: [users.id],
+  }),
+}));
+
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   recipient: one(users, {
     fields: [notifications.recipientUserId],
@@ -538,3 +563,11 @@ export const insertMealSeatAssignmentSchema = createInsertSchema(mealSeatAssignm
 });
 export type InsertMealSeatAssignment = z.infer<typeof insertMealSeatAssignmentSchema>;
 export type MealSeatAssignment = typeof mealSeatAssignments.$inferSelect;
+
+export const insertKitchenEquipmentSchema = createInsertSchema(kitchenEquipment).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertKitchenEquipment = z.infer<typeof insertKitchenEquipmentSchema>;
+export type KitchenEquipment = typeof kitchenEquipment.$inferSelect;
