@@ -231,12 +231,10 @@ export default function MyKitchen() {
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-5 gap-6">
-        {/* Left Column - Add New Items */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-title-2 mb-4">Add Ingredients</h2>
+      {/* Add Ingredients Form - Full Width */}
+      <Card className="mb-6">
+        <CardContent className="p-6">
+          <h2 className="text-title-2 mb-4">Add Ingredients</h2>
               
               <div className="space-y-4">
                 {/* Ingredient Autocomplete */}
@@ -299,89 +297,58 @@ export default function MyKitchen() {
                   </Popover>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      value={newItem.quantity}
-                      onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-                      data-testid="input-quantity"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="unit">Unit</Label>
-                    <Input
-                      id="unit"
-                      placeholder="lbs, oz, pcs"
-                      value={newItem.unit}
-                      onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-                      data-testid="input-unit"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <Label htmlFor="expiration">Expiration Date (Optional)</Label>
-                  <Input
-                    id="expiration"
-                    type="date"
-                    value={newItem.expirationDate}
-                    onChange={(e) => setNewItem({ ...newItem, expirationDate: e.target.value })}
-                    data-testid="input-expiration"
-                  />
-                </div>
-                
-                <Button 
-                  onClick={handleAddItem} 
-                  className="w-full gap-2"
-                  disabled={addMutation.isPending || !newItem.name}
-                  data-testid="button-save-item"
-                >
-                  <Plus className="w-4 h-4" />
-                  {addMutation.isPending ? "Adding..." : `Add to ${selectedCategory}`}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min="0"
+                step="0.1"
+                value={newItem.quantity}
+                onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                data-testid="input-quantity"
+              />
+            </div>
+            <div>
+              <Label htmlFor="unit">Unit</Label>
+              <Input
+                id="unit"
+                placeholder="lbs, oz, pcs"
+                value={newItem.unit}
+                onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                data-testid="input-unit"
+              />
+            </div>
+            <div>
+              <Label htmlFor="expiration">Expiration Date</Label>
+              <Input
+                id="expiration"
+                type="date"
+                value={newItem.expirationDate}
+                onChange={(e) => setNewItem({ ...newItem, expirationDate: e.target.value })}
+                data-testid="input-expiration"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={handleAddItem} 
+                className="w-full gap-2"
+                disabled={addMutation.isPending || !newItem.name}
+                data-testid="button-save-item"
+              >
+                <Plus className="w-4 h-4" />
+                {addMutation.isPending ? "Adding..." : `Add to ${selectedCategory}`}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-          {/* Quick Stats */}
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="font-semibold mb-3">Quick Stats</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Fridge Items:</span>
-                  <span className="font-medium">{inventory?.filter(i => i.category === 'fridge').length || 0}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Pantry Items:</span>
-                  <span className="font-medium">{inventory?.filter(i => i.category === 'pantry').length || 0}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Other Items:</span>
-                  <span className="font-medium">{inventory?.filter(i => i.category === 'other').length || 0}</span>
-                </div>
-                <div className="pt-2 border-t flex justify-between">
-                  <span className="text-muted-foreground">Expiring Soon:</span>
-                  <span className="font-medium text-destructive">
-                    {inventory?.filter(item => {
-                      if (!item.expirationDate) return false;
-                      const daysUntilExpiry = Math.ceil((new Date(item.expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                      return daysUntilExpiry >= 0 && daysUntilExpiry <= 3;
-                    }).length || 0}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column - Visual Inventory */}
-        <div className="lg:col-span-3">
+      {/* Two Column Layout: Inventory (Left) and Quick Facts (Right) */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Left Column - Inventory List */}
+        <div className="lg:col-span-2">
           <Tabs value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as Category)}>
             <TabsList className="grid w-full grid-cols-4 mb-6">
               <TabsTrigger value="fridge" data-testid="tab-fridge">Fridge</TabsTrigger>
@@ -495,7 +462,7 @@ export default function MyKitchen() {
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
                         <p className="text-muted-foreground">
-                          No items in your {selectedCategory} yet. Use the form on the left to add ingredients.
+                          No items in your {selectedCategory} yet. Use the form above to add ingredients.
                         </p>
                       </div>
                     </div>
@@ -560,6 +527,73 @@ export default function MyKitchen() {
               )}
             </TabsContent>
           </Tabs>
+        </div>
+
+        {/* Right Column - Quick Facts Panel */}
+        <div className="lg:col-span-1 space-y-6">
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="text-title-3 mb-4">Quick Stats</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Total Items</span>
+                  <span className="font-semibold">{inventory?.length || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">In Fridge</span>
+                  <span className="font-semibold">
+                    {inventory?.filter(i => i.category === 'fridge').length || 0}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">In Pantry</span>
+                  <span className="font-semibold">
+                    {inventory?.filter(i => i.category === 'pantry').length || 0}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Other</span>
+                  <span className="font-semibold">
+                    {inventory?.filter(i => i.category === 'other').length || 0}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="text-title-3 mb-4 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-destructive" />
+                Expiring Soon
+              </h3>
+              <div className="space-y-2">
+                {inventory?.filter(item => {
+                  if (!item.expirationDate) return false;
+                  const daysUntilExpiry = Math.ceil((new Date(item.expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  return daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
+                }).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No items expiring soon</p>
+                ) : (
+                  inventory?.filter(item => {
+                    if (!item.expirationDate) return false;
+                    const daysUntilExpiry = Math.ceil((new Date(item.expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    return daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
+                  }).map(item => {
+                    const daysUntilExpiry = Math.ceil((new Date(item.expirationDate!).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                    return (
+                      <div key={item.id} className="flex items-center justify-between text-sm">
+                        <span className="truncate">{item.name}</span>
+                        <span className="text-destructive font-medium whitespace-nowrap ml-2">
+                          {daysUntilExpiry === 0 ? "Today" : `${daysUntilExpiry}d`}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

@@ -27,7 +27,7 @@ Core entities include Users (profiles, preferences), Kitchen Inventory (items, e
 ### Key Features Architecture
 
 *   **Onboarding Flow:** A multi-slide carousel guides new users.
-*   **Kitchen Inventory Management:** Provides CRUD operations for inventory items across different locations (fridge, pantry), with expiration tracking and category-based filtering.
+*   **Kitchen Inventory Management:** Provides CRUD operations for inventory items across different locations (fridge, pantry), with expiration tracking and category-based filtering. Features always-visible ingredient autocomplete using Spoonacular API (memoized 5-minute cache, 2+ character minimum, 30x30px thumbnails). Ingredient name and image auto-populate from selection.
 *   **Recipe Discovery:** Features a search and filter system (diet type, calories, ingredient matching), rating functionality, and photo uploads. Backend supports dietary restriction filtering via a tag-based system with database-level enforcement.
 *   **Meal Planning:** Offers a visual dining table interface with configurable seats (2-6 people, poker table layout), per-seat dietary restrictions, recipe assignment via filtered picker modal, and a collaborative voting system for family meal planning. Recipe picker combines dietary restrictions from ALL active seats and enforces compliance via backend tag filtering. External API recipes excluded when restrictions present to guarantee safety.
 *   **AI Chat Assistant:** Integrates OpenAI GPT-5 via Replit AI Integrations for context-aware recipe suggestions and shopping list generation.
@@ -40,7 +40,7 @@ Core entities include Users (profiles, preferences), Kitchen Inventory (items, e
 *   **Authentication:** Replit Auth (OpenID Connect provider).
 *   **Database:** Neon Serverless PostgreSQL.
 *   **AI Integration:** OpenAI API (GPT-5 model) via Replit AI Integrations.
-*   **Recipe Images:** Spoonacular API for ingredient image auto-fetching.
+*   **Recipe Images:** Spoonacular API for ingredient image auto-fetching and autocomplete suggestions.
 *   **Ingredient Photos:** Unsplash API for ingredient photos.
 
 ### Key NPM Packages
