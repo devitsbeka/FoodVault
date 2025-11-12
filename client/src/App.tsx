@@ -4,8 +4,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger, Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter } from "@/components/ui/sidebar";
-import { UserButton } from "@clerk/clerk-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AIChatFAB } from "@/components/ai-chat-fab";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Home from "@/pages/home";
@@ -66,6 +68,12 @@ function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center gap-3 px-4 py-3">
+              <Avatar className="w-10 h-10">
+                <AvatarImage src={user?.profileImageUrl} alt={user?.firstName || ""} />
+                <AvatarFallback>
+                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">
                   {user?.firstName} {user?.lastName}
@@ -74,14 +82,16 @@ function AppSidebar() {
                   {user?.email}
                 </p>
               </div>
-              <UserButton 
+              <Button
+                variant="ghost"
+                size="icon"
+                asChild
                 data-testid="button-user-menu"
-                appearance={{
-                  elements: {
-                    avatarBox: "w-10 h-10"
-                  }
-                }}
-              />
+              >
+                <a href="/api/logout">
+                  <LogOut className="w-4 h-4" />
+                </a>
+              </Button>
             </div>
           </SidebarMenuItem>
         </SidebarMenu>

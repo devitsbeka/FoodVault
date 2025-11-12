@@ -53,14 +53,37 @@ function updateUserSession(
 
 async function upsertUser(
   claims: any,
-) {
+): Promise<string> {
+  const email = claims["email"];
+  
+  // Try to find existing user by email to preserve data from Clerk migration
+  if (email) {
+    const existingUser = await storage.getUserByEmail(email);
+    if (existingUser) {
+      // Update existing user record, preserving their ID
+      await storage.upsertUser({
+        id: existingUser.id, // Keep existing ID to preserve FK relationships
+        email: email,
+        firstName: claims["first_name"],
+        lastName: claims["last_name"],
+        profileImageUrl: claims["profile_image_url"],
+      });
+      // Return the existing database ID for session storage
+      return existingUser.id;
+    }
+  }
+  
+  // No existing user found, create new one with Replit subject as ID
   await storage.upsertUser({
     id: claims["sub"],
-    email: claims["email"],
+    email: email,
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
   });
+  
+  // Return the new user's ID (Replit subject)
+  return claims["sub"];
 }
 
 export async function setupAuth(app: Express) {
@@ -75,9 +98,10 @@ export async function setupAuth(app: Express) {
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
-    const user = {};
+    const user: any = {};
     updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
+    // Get the actual database user ID (handles both new users and Clerk migrations)
+    user.dbUserId = await upsertUser(tokens.claims());
     verified(null, user);
   };
 

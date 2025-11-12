@@ -1,8 +1,7 @@
 // Blueprint reference: javascript_log_in_with_replit, javascript_openai_ai_integrations
 import type { Express, Response } from "express";
 import { storage } from "./storage";
-import { isAuthenticated, optionalAuth, syncClerkUser } from "./clerkAuth";
-import { getAuth } from "@clerk/express";
+import { isAuthenticated, optionalAuth } from "./replitAuth";
 import { getChatCompletion, getProductRecommendations, getProductImageUrl } from "./openai";
 import { insertKitchenInventorySchema, insertKitchenEquipmentSchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
@@ -26,31 +25,14 @@ function sendError(res: Response, status: number, message: string, code?: string
 
 export function registerRoutes(app: Express) {
   // Auth routes
-  app.post("/api/auth/sync", isAuthenticated, async (req, res) => {
+  app.get("/api/auth/user", async (req: any, res) => {
     try {
-      const { userId } = getAuth(req);
-      if (!userId) {
+      // Public endpoint - returns 401 if not authenticated
+      if (!req.isAuthenticated() || !req.user?.dbUserId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
-
-      const { email, firstName, lastName, imageUrl } = req.body;
       
-      await syncClerkUser(userId, email, firstName, lastName, imageUrl);
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error syncing user:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.get("/api/auth/user", isAuthenticated, async (req, res) => {
-    try {
-      const { userId } = getAuth(req);
-      if (!userId) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-
+      const userId = req.user.dbUserId;
       const dbUser = await storage.getUserById(userId);
       if (!dbUser) {
         return res.status(404).json({ message: "User not found" });
@@ -65,7 +47,7 @@ export function registerRoutes(app: Express) {
   // Kitchen Inventory routes
   app.get("/api/kitchen-inventory", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const inventory = await storage.getKitchenInventory(userId);
       res.json(inventory);
     } catch (error) {
@@ -76,7 +58,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/kitchen-inventory", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const validatedData = insertKitchenInventorySchema.parse(req.body);
       
       // Fetch ingredient image if not provided
@@ -102,7 +84,7 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/kitchen-inventory/:id", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       await storage.deleteKitchenItem(req.params.id, userId);
       res.json({ message: "Item deleted" });
     } catch (error) {
@@ -114,7 +96,7 @@ export function registerRoutes(app: Express) {
   // Kitchen Equipment routes
   app.get("/api/kitchen-equipment", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const location = req.query.location as 'indoor' | 'outdoor' | undefined;
       const equipment = await storage.getKitchenEquipment(userId, location);
       res.json(equipment);
@@ -126,7 +108,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/kitchen-equipment", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const validatedData = insertKitchenEquipmentSchema.parse(req.body);
       
       let imageUrl = validatedData.imageUrl;
@@ -156,7 +138,7 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/kitchen-equipment/:id", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       await storage.deleteKitchenEquipment(req.params.id, userId);
       res.json({ message: "Equipment deleted" });
     } catch (error) {
@@ -272,7 +254,7 @@ export function registerRoutes(app: Express) {
       
       // Calculate match percentage for all recipes if user is authenticated
       if (req.user) {
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = (req.user as any)?.dbUserId;
         if (userId) {
           const inventory = await storage.getKitchenInventory(userId);
           const inventoryMap = new Map(
@@ -366,7 +348,7 @@ export function registerRoutes(app: Express) {
       
       if (recipe) {
         // Get user's kitchen inventory to map ingredients if authenticated
-        const userId = (req.user as any)?.claims?.sub;
+        const userId = (req.user as any)?.dbUserId;
         if (userId) {
           const inventory = await storage.getKitchenInventory(userId);
           const inventoryNames = new Set(inventory.map(item => item.name.toLowerCase()));
@@ -388,7 +370,7 @@ export function registerRoutes(app: Express) {
       }
       
       // Fallback to database recipes (for user-created recipes) - requires auth
-      const userId = (req.user as any)?.claims?.sub;
+      const userId = (req.user as any)?.dbUserId;
       if (!userId) {
         return res.status(401).json({ message: "Authentication required" });
       }
@@ -423,7 +405,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/recipes/:id/rate", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { rating, comment } = req.body;
 
       if (typeof rating !== "number" || rating < 1 || rating > 5) {
@@ -446,7 +428,7 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/recipes/recommended", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const recipes = await storage.getRecommendedRecipes(userId);
       res.json(recipes);
     } catch (error) {
@@ -482,7 +464,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/recipes/:id/ratings", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const validatedData = insertRecipeRatingSchema.parse({
         ...req.body,
         recipeId: req.params.id,
@@ -502,7 +484,7 @@ export function registerRoutes(app: Express) {
   // Recipe Interactions - Track views and searches for smart recommendations
   app.post("/api/recipe-interactions", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { recipeId, interactionType } = req.body;
 
       if (!recipeId || !interactionType) {
@@ -529,7 +511,7 @@ export function registerRoutes(app: Express) {
   // Meal Plan routes
   app.get("/api/meal-plans", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const mealPlans = await storage.getMealPlans(userId);
       res.json(mealPlans);
     } catch (error) {
@@ -540,7 +522,7 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/meal-plans/upcoming", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const upcomingMeals = await storage.getUpcomingMeals(userId);
       res.json(upcomingMeals);
     } catch (error) {
@@ -551,7 +533,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/meal-plans", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const validatedData = insertMealPlanSchema.parse({
         ...req.body,
         userId: userId,
@@ -569,7 +551,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/meal-plans/:id/vote", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const validatedData = insertMealVoteSchema.parse({
         ...req.body,
         mealPlanId: req.params.id,
@@ -589,7 +571,7 @@ export function registerRoutes(app: Express) {
   // Meal Seat Management routes
   app.get("/api/meal-plans/detail", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { date, familyId } = req.query;
 
       if (!date || typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -623,7 +605,7 @@ export function registerRoutes(app: Express) {
 
   app.put("/api/meal-plans", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { date, familyId, seats } = req.body;
 
       // Validation
@@ -678,7 +660,7 @@ export function registerRoutes(app: Express) {
 
   app.put("/api/meal-plans/:planId/seats/:seatId/assignment", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { recipeId } = req.body;
 
       if (!recipeId || typeof recipeId !== "string") {
@@ -705,7 +687,7 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/meal-plans/:planId/seats/:seatId/assignment", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
 
       // Authorization: Verify user has access to this meal plan
       const hasAccess = await storage.userHasMealPlanAccess(userId, req.params.planId);
@@ -724,7 +706,7 @@ export function registerRoutes(app: Express) {
   // AI Chat routes
   app.get("/api/chat/messages", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const messages = await storage.getChatMessages(userId);
       res.json(messages);
     } catch (error) {
@@ -735,7 +717,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/chat/messages", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { content } = req.body;
 
       if (!content || typeof content !== "string") {
@@ -848,7 +830,7 @@ export function registerRoutes(app: Express) {
   // Family routes
   app.get("/api/family", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const family = await storage.getFamily(userId);
       res.json(family);
     } catch (error) {
@@ -859,7 +841,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/family", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { name } = req.body;
       
       if (!name || typeof name !== "string") {
@@ -886,7 +868,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/family/members", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { email } = req.body;
       
       if (!email || typeof email !== "string" || !email.includes("@")) {
@@ -941,7 +923,7 @@ export function registerRoutes(app: Express) {
   if (process.env.NODE_ENV === "development") {
     app.post("/api/dev/seed-family", isAuthenticated, async (req, res) => {
       try {
-        const { userId } = getAuth(req);
+        const userId = (req as any).user.dbUserId;
         
         // Get or create family
         let family = await storage.getFamily(userId);
@@ -1005,7 +987,7 @@ export function registerRoutes(app: Express) {
   // Shopping List routes
   app.get("/api/shopping-lists", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const lists = await storage.getShoppingLists(userId);
       res.json(lists);
     } catch (error) {
@@ -1016,7 +998,7 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/shopping-lists/:id", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const result = await storage.getShoppingListWithItems(req.params.id, userId);
       
       if (result.status === "not_found") {
@@ -1036,7 +1018,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/shopping-lists", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const validatedData = insertShoppingListSchema.parse({
         ...req.body,
         userId: userId,
@@ -1054,7 +1036,7 @@ export function registerRoutes(app: Express) {
 
   app.patch("/api/shopping-lists/:id", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { name } = req.body;
       const result = await storage.updateShoppingList(req.params.id, userId, name);
       
@@ -1075,7 +1057,7 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/shopping-lists/:id", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const result = await storage.deleteShoppingList(req.params.id, userId);
       
       if (result.status === "not_found") {
@@ -1095,7 +1077,7 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/shopping-lists/suggestions/meal-plans", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const suggestions = await storage.getShoppingListSuggestions(userId);
       res.json(suggestions);
     } catch (error) {
@@ -1108,7 +1090,7 @@ export function registerRoutes(app: Express) {
   // Shopping List Item routes
   app.patch("/api/shopping-lists/:listId/items/:itemId/status", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { itemId } = req.params;
       
       // Validate status
@@ -1141,7 +1123,7 @@ export function registerRoutes(app: Express) {
 
   app.patch("/api/shopping-lists/:listId/items/:itemId/assign", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { itemId } = req.params;
       
       // Validate assignedToUserId
@@ -1170,7 +1152,7 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/shopping-lists/:listId/items/:itemId", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const { itemId } = req.params;
       
       const result = await storage.deleteShoppingListItem(itemId, userId);
@@ -1188,7 +1170,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/shopping-lists/:listId/items", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const validatedData = insertShoppingListItemSchema.parse({
         ...req.body,
         listId: req.params.listId,
@@ -1213,7 +1195,7 @@ export function registerRoutes(app: Express) {
   // Inventory Review Queue routes
   app.get("/api/inventory-review-queue", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const items = await storage.getPendingReviewItems(userId);
       res.json(items);
     } catch (error) {
@@ -1224,7 +1206,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/inventory-review-queue", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const validatedData = insertInventoryReviewQueueSchema.parse(req.body);
       
       const item = await storage.addToReviewQueue(validatedData, userId);
@@ -1245,7 +1227,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/inventory-review-queue/:itemId/approve", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       // Note: category and expirationDate not yet supported by storage method
       // Uses categoryGuess from review item itself
       const result = await storage.approveReviewItem(req.params.itemId, userId);
@@ -1263,7 +1245,7 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/inventory-review-queue/:itemId", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const deleted = await storage.rejectReviewItem(req.params.itemId, userId);
       
       if (!deleted) {
@@ -1280,7 +1262,7 @@ export function registerRoutes(app: Express) {
   // Notifications routes
   app.get("/api/notifications", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const notifications = await storage.getRecentNotifications(userId, 50);
       res.json(notifications);
     } catch (error) {
@@ -1291,7 +1273,7 @@ export function registerRoutes(app: Express) {
 
   app.patch("/api/notifications/:notificationId/read", isAuthenticated, async (req, res) => {
     try {
-      const { userId } = getAuth(req);
+      const userId = (req as any).user.dbUserId;
       const result = await storage.markNotificationAsRead(req.params.notificationId, userId);
       
       if (result.status === "not_found") {

@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { ChefHat, Smartphone, Users, Sparkles } from "lucide-react";
-import { SignInButton, SignUpButton } from "@clerk/clerk-react";
 
 export default function Landing() {
   return (
@@ -25,25 +24,23 @@ export default function Landing() {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <SignUpButton mode="modal">
-              <Button 
-                size="lg" 
-                className="min-h-12 px-8 text-base font-semibold"
-                data-testid="button-get-started"
-              >
-                Get Started
-              </Button>
-            </SignUpButton>
-            <SignInButton mode="modal">
-              <Button 
-                variant="outline" 
-                size="lg" 
-                className="min-h-12 px-8 text-base font-semibold"
-                data-testid="button-sign-in"
-              >
-                Sign In
-              </Button>
-            </SignInButton>
+            <Button 
+              size="lg" 
+              className="min-h-12 px-8 text-base font-semibold"
+              data-testid="button-get-started"
+              asChild
+            >
+              <a href="/api/login">Get Started</a>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="min-h-12 px-8 text-base font-semibold"
+              data-testid="button-sign-in"
+              asChild
+            >
+              <a href="/api/login">Sign In</a>
+            </Button>
           </div>
         </div>
       </div>
@@ -90,15 +87,14 @@ export default function Landing() {
           <p className="text-muted-foreground mb-8">
             Join thousands of families already managing their meals smarter.
           </p>
-          <SignUpButton mode="modal">
-            <Button 
-              size="lg" 
-              className="min-h-12 px-8"
-              data-testid="button-cta-get-started"
-            >
-              Start Free Today
-            </Button>
-          </SignUpButton>
+          <Button 
+            size="lg" 
+            className="min-h-12 px-8"
+            data-testid="button-cta-get-started"
+            asChild
+          >
+            <a href="/api/login">Start Free Today</a>
+          </Button>
         </div>
       </div>
     </div>
