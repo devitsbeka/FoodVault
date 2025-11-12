@@ -1,0 +1,38 @@
+6. (Continued) My Kitchen Management
+
+Description:
+In the "My Kitchen" section, beyond managing the fridge inventory, users can track pantry staples, note expiration dates for perishables, and add other household items. This allows the app to make smarter suggestions based on what is about to expire or what is commonly in stock.
+
+Technical Instructions:
+
+Use UITableView sections or a segmented control for different categories like fridge, pantry, and others.
+
+On the web, use similar macOS-style tabs or segmented controls to switch between inventory types.
+
+7. Social and Feedback Features
+
+Description:
+After preparing a recipe, users can rate it, leave feedback, and optionally upload a photo of the final dish. This creates a social element where other users (or family members) can see and interact with these posts on the recipe page.
+
+Technical Instructions:
+
+Implement a photo upload feature using native iOS photo pickers and web file upload components that align with Apple design.
+
+Display user-uploaded content in a clean, Apple-style social feed on the recipe detail page.
+
+8. Collaborative Meal Planning with Family
+
+Description:
+A key feature is collaborative meal planning with family members. Users can invite their spouse or family to join, share meal plans, and vote on dishes. Once a certain threshold of votes is reached, the dish is approved for the meal plan.
+
+Technical Instructions:
+
+Allow family member invitations via standard iOS share sheets or web-based email invites.
+
+Implement a voting system using simple toggles or buttons that match Apple’s interface style.
+
+Once a meal reaches the required number of votes, it is automatically added to the shared meal plan.
+
+Final Notes and Summary
+
+Ensure that throughout the app, the design adheres closely to Apple’s Human Interface Guidelines. Keep the user experience simple, familiar, and as seamless as possible by leveraging native iOS and macOS components. Provide detailed, step-by-step technical instructions for each feature to ensure the developer can follow along easily.

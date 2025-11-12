@@ -1,0 +1,63 @@
+Comprehensive Prompt for a Food Management App Using Apple Design Guidelines
+
+Overview:
+We are building a cross-platform application for iOS and web, using native Apple design components and following Apple's Human Interface Guidelines. The app is meant to help users manage their daily food intake and diet through intuitive features, an AI assistant, and family collaboration.
+
+1. Onboarding Experience
+
+Description:
+When the user first opens the app, they should be greeted with a three to four slide onboarding flow. Each slide will highlight a key feature of the application.
+
+Technical Instructions:
+
+Use iOS native UIPageViewController for the onboarding slides on mobile.
+
+On the web, replicate the same design using standard Apple-like carousel components.
+
+Slides should be concise, visually clean, and follow Apple’s design language.
+
+2. Empty State and Initial Setup
+
+Description:
+After onboarding, the user arrives at an empty state screen where they can start by entering ingredients available in their fridge or browse recipes.
+
+Technical Instructions:
+
+Use a standard UITableView or UICollectionView for listing ingredients and recipes on iOS.
+
+On the web, mirror these with a native macOS-style list and grid views.
+
+Allow users to toggle between adding fridge ingredients and browsing recipes right from this screen.
+
+3. Recipe Filtering and Diet Customization
+
+Description:
+Users can filter recipes by their chosen diet, calorie limits, ingredients on hand, and allergies. They can also set a threshold for ingredient overlap (for example, recipes that match at least 50% of what's in their fridge).
+
+Technical Instructions:
+
+Implement filtering logic that can be easily adjusted by the user through simple sliders or picker controls that are native to iOS.
+
+Use standard UIPickerView for diet and allergy selection and replicate a similar experience on the web with dropdowns that match macOS styles.
+
+4. AI Assistant and Actionable Chat
+
+Description:
+A floating action button (FAB) will allow users to chat with an AI agent. They can ask for specific recipes, meal ideas (like "Mexican food"), or even initiate tasks like creating a shopping list.
+
+Technical Instructions:
+
+Implement a UIButton styled as a floating action button on iOS, and a similar floating button on the web.
+
+Use a chat interface that follows Apple’s Messages UI for conversational interactions.
+
+5. Shopping Integration
+
+Description:
+Users can generate a shopping list for missing ingredients and integrate with a service like DoorDash to order them.
+
+Technical Instructions:
+
+Provide a step-by-step API integration guide for connecting to a delivery service.
+
+Allow the AI to match the missing ingredients with products and auto-fill a shopping cart for the user.
