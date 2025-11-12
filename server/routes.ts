@@ -1,10 +1,25 @@
 // Blueprint reference: javascript_log_in_with_replit, javascript_openai_ai_integrations
-import type { Express } from "express";
+import type { Express, Response } from "express";
 import { storage } from "./storage";
 import { isAuthenticated } from "./replitAuth";
 import { getChatCompletion } from "./openai";
-import { insertKitchenInventorySchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema } from "@shared/schema";
+import { insertKitchenInventorySchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
+
+// Shared error response helper
+interface ErrorResponse {
+  status: number;
+  message: string;
+  code?: string;
+  issues?: any[];
+}
+
+function sendError(res: Response, status: number, message: string, code?: string, issues?: any[]) {
+  const error: ErrorResponse = { status, message };
+  if (code) error.code = code;
+  if (issues) error.issues = issues;
+  res.status(status).json(error);
+}
 
 export function registerRoutes(app: Express) {
   // Auth routes
@@ -477,6 +492,26 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.get("/api/shopping-lists/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const result = await storage.getShoppingListWithItems(req.params.id, user.claims.sub);
+      
+      if (result.status === "not_found") {
+        return sendError(res, 404, "Shopping list not found", "NOT_FOUND");
+      }
+      
+      if (result.status === "forbidden") {
+        return sendError(res, 403, "Access denied to this shopping list", "FORBIDDEN");
+      }
+      
+      res.json(result.data);
+    } catch (error) {
+      console.error("Error getting shopping list:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
   app.post("/api/shopping-lists", isAuthenticated, async (req, res) => {
     try {
       const user = req.user as any;
@@ -489,32 +524,230 @@ export function registerRoutes(app: Express) {
     } catch (error: any) {
       console.error("Error creating shopping list:", error);
       if (error.name === "ZodError") {
-        return res.status(400).json({ message: "Invalid request data", errors: error.errors });
+        return sendError(res, 400, "Invalid request data", "VALIDATION_ERROR", error.errors);
       }
-      res.status(500).json({ message: "Internal server error" });
+      sendError(res, 500, "Internal server error");
     }
   });
 
   app.patch("/api/shopping-lists/:id", isAuthenticated, async (req, res) => {
     try {
       const user = req.user as any;
-      const { items } = req.body;
-      const list = await storage.updateShoppingList(req.params.id, user.claims.sub, items);
-      res.json(list);
+      const { name } = req.body;
+      const result = await storage.updateShoppingList(req.params.id, user.claims.sub, name);
+      
+      if (result.status === "not_found") {
+        return sendError(res, 404, "Shopping list not found", "NOT_FOUND");
+      }
+      
+      if (result.status === "forbidden") {
+        return sendError(res, 403, "Access denied to this shopping list", "FORBIDDEN");
+      }
+      
+      res.json(result.data);
     } catch (error) {
       console.error("Error updating shopping list:", error);
-      res.status(500).json({ message: "Internal server error" });
+      sendError(res, 500, "Internal server error");
     }
   });
 
   app.delete("/api/shopping-lists/:id", isAuthenticated, async (req, res) => {
     try {
       const user = req.user as any;
-      await storage.deleteShoppingList(req.params.id, user.claims.sub);
+      const result = await storage.deleteShoppingList(req.params.id, user.claims.sub);
+      
+      if (result.status === "not_found") {
+        return sendError(res, 404, "Shopping list not found", "NOT_FOUND");
+      }
+      
+      if (result.status === "forbidden") {
+        return sendError(res, 403, "Access denied to this shopping list", "FORBIDDEN");
+      }
+      
       res.json({ message: "Shopping list deleted" });
     } catch (error) {
       console.error("Error deleting shopping list:", error);
-      res.status(500).json({ message: "Internal server error" });
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // Shopping List Items routes
+  app.post("/api/shopping-lists/:listId/items", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const validatedData = insertShoppingListItemSchema.parse({
+        ...req.body,
+        listId: req.params.listId,
+      });
+      
+      const item = await storage.addShoppingListItem(validatedData, user.claims.sub);
+      
+      if (!item) {
+        return sendError(res, 403, "Access denied to this shopping list", "FORBIDDEN");
+      }
+      
+      res.json(item);
+    } catch (error: any) {
+      console.error("Error adding shopping list item:", error);
+      if (error.name === "ZodError") {
+        return sendError(res, 400, "Invalid request data", "VALIDATION_ERROR", error.errors);
+      }
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.patch("/api/shopping-list-items/:itemId/status", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { status } = req.body;
+      
+      if (!["active", "bought", "pending_review"].includes(status)) {
+        return sendError(res, 400, "Invalid status. Must be active, bought, or pending_review", "VALIDATION_ERROR");
+      }
+      
+      const item = await storage.updateShoppingListItemStatus(req.params.itemId, user.claims.sub, status);
+      
+      if (!item) {
+        return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
+      }
+      
+      res.json(item);
+    } catch (error) {
+      console.error("Error updating shopping list item status:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.patch("/api/shopping-list-items/:itemId/assign", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { assignedToUserId } = req.body;
+      
+      const item = await storage.assignShoppingListItem(req.params.itemId, user.claims.sub, assignedToUserId || null);
+      
+      if (!item) {
+        return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
+      }
+      
+      res.json(item);
+    } catch (error) {
+      console.error("Error assigning shopping list item:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.delete("/api/shopping-list-items/:itemId", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const deleted = await storage.deleteShoppingListItem(req.params.itemId, user.claims.sub);
+      
+      if (!deleted) {
+        return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
+      }
+      
+      res.json({ message: "Shopping list item deleted" });
+    } catch (error) {
+      console.error("Error deleting shopping list item:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // Inventory Review Queue routes
+  app.get("/api/inventory-review-queue", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const items = await storage.getPendingReviewItems(user.claims.sub);
+      res.json(items);
+    } catch (error) {
+      console.error("Error getting pending review items:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.post("/api/inventory-review-queue", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const validatedData = insertInventoryReviewQueueSchema.parse(req.body);
+      
+      const item = await storage.addToReviewQueue(validatedData, user.claims.sub);
+      
+      if (!item) {
+        return sendError(res, 403, "Access denied or invalid review queue entry", "FORBIDDEN");
+      }
+      
+      res.json(item);
+    } catch (error: any) {
+      console.error("Error adding to review queue:", error);
+      if (error.name === "ZodError") {
+        return sendError(res, 400, "Invalid request data", "VALIDATION_ERROR", error.errors);
+      }
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.post("/api/inventory-review-queue/:itemId/approve", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      // Note: category and expirationDate not yet supported by storage method
+      // Uses categoryGuess from review item itself
+      const result = await storage.approveReviewItem(req.params.itemId, user.claims.sub);
+      
+      if (!result) {
+        return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error approving review item:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.delete("/api/inventory-review-queue/:itemId", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const deleted = await storage.rejectReviewItem(req.params.itemId, user.claims.sub);
+      
+      if (!deleted) {
+        return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
+      }
+      
+      res.json({ message: "Review item rejected" });
+    } catch (error) {
+      console.error("Error rejecting review item:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // Notifications routes
+  app.get("/api/notifications", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const notifications = await storage.getRecentNotifications(user.claims.sub, 50);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error getting notifications:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.patch("/api/notifications/:notificationId/read", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const result = await storage.markNotificationAsRead(req.params.notificationId, user.claims.sub);
+      
+      if (result.status === "not_found") {
+        return sendError(res, 404, "Notification not found", "NOT_FOUND");
+      }
+      
+      if (result.status === "forbidden") {
+        return sendError(res, 403, "Access denied to this notification", "FORBIDDEN");
+      }
+      
+      res.json({ message: "Notification marked as read" });
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      sendError(res, 500, "Internal server error");
     }
   });
 }

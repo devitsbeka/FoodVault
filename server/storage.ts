@@ -1,8 +1,37 @@
 import { db } from "./db";
-import { eq, and, gte, desc, sql, inArray, isNull } from "drizzle-orm";
+import { eq, and, gte, desc, sql, inArray, isNull, or } from "drizzle-orm";
 import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification } from "@shared/schema";
 import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications } from "@shared/schema";
 import { normalizeIngredientName } from "./normalizationService";
+
+// Helper function to check if user has access to a shopping list (owner or family member)
+// Returns tri-state: {exists, authorized} to distinguish 404 vs 403
+async function getListAccessState(listId: string, userId: string): Promise<{exists: boolean, authorized: boolean}> {
+  const result = await db
+    .select({ list: shoppingLists, member: familyMembers })
+    .from(shoppingLists)
+    .leftJoin(familyMembers, and(
+      eq(shoppingLists.familyId, familyMembers.familyId),
+      eq(familyMembers.userId, userId)
+    ))
+    .where(eq(shoppingLists.id, listId));
+  
+  if (!result.length) {
+    return { exists: false, authorized: false };
+  }
+  
+  const { list, member } = result[0];
+  
+  // User has access if they own the list OR they're a family member
+  const authorized = list.userId === userId || member !== null;
+  return { exists: true, authorized };
+}
+
+// Simple boolean wrapper for methods that don't need tri-state
+async function userHasListAccess(listId: string, userId: string): Promise<boolean> {
+  const state = await getListAccessState(listId, userId);
+  return state.exists && state.authorized;
+}
 
 export const storage = {
   async upsertUser(user: UpsertUser): Promise<void> {
@@ -409,11 +438,29 @@ export const storage = {
 
   // Shopping Lists
   async getShoppingLists(userId: string): Promise<ShoppingList[]> {
-    return await db
-      .select()
+    // Get lists owned by user OR lists shared via family
+    const result = await db
+      .select({ list: shoppingLists })
       .from(shoppingLists)
-      .where(eq(shoppingLists.userId, userId))
+      .leftJoin(familyMembers, and(
+        eq(shoppingLists.familyId, familyMembers.familyId),
+        eq(familyMembers.userId, userId)
+      ))
+      .where(or(
+        eq(shoppingLists.userId, userId),
+        eq(familyMembers.userId, userId)
+      ))
       .orderBy(desc(shoppingLists.updatedAt));
+    
+    // Remove duplicates (can occur if user is both owner and family member)
+    const seen = new Set<string>();
+    return result
+      .map(r => r.list)
+      .filter(list => {
+        if (seen.has(list.id)) return false;
+        seen.add(list.id);
+        return true;
+      });
   },
 
   async createShoppingList(list: InsertShoppingList): Promise<ShoppingList> {
@@ -421,46 +468,48 @@ export const storage = {
     return result[0];
   },
 
-  async updateShoppingList(id: string, userId: string, name?: string): Promise<ShoppingList> {
+  async updateShoppingList(id: string, userId: string, name?: string): Promise<{ status: "ok" | "not_found" | "forbidden"; data?: ShoppingList }> {
+    const access = await getListAccessState(id, userId);
+    
+    if (!access.exists) {
+      return { status: "not_found" };
+    }
+    
+    if (!access.authorized) {
+      return { status: "forbidden" };
+    }
+
     const result = await db
       .update(shoppingLists)
       .set({ 
         ...(name && { name }),
         updatedAt: new Date() 
       })
-      .where(
-        and(
-          eq(shoppingLists.id, id),
-          eq(shoppingLists.userId, userId)
-        )
-      )
+      .where(eq(shoppingLists.id, id))
       .returning();
-    return result[0];
+    return { status: "ok", data: result[0] };
   },
 
-  async deleteShoppingList(id: string, userId: string): Promise<void> {
-    await db.delete(shoppingLists).where(
-      and(
-        eq(shoppingLists.id, id),
-        eq(shoppingLists.userId, userId)
-      )
-    );
+  async deleteShoppingList(id: string, userId: string): Promise<{ status: "ok" | "not_found" | "forbidden" }> {
+    const access = await getListAccessState(id, userId);
+    
+    if (!access.exists) {
+      return { status: "not_found" };
+    }
+    
+    if (!access.authorized) {
+      return { status: "forbidden" };
+    }
+
+    await db.delete(shoppingLists).where(eq(shoppingLists.id, id));
+    return { status: "ok" };
   },
 
   // Shopping List Items
   async addShoppingListItem(item: InsertShoppingListItem, userId: string): Promise<ShoppingListItem | null> {
-    // Verify the shopping list belongs to the user
-    const listCheck = await db
-      .select()
-      .from(shoppingLists)
-      .where(
-        and(
-          eq(shoppingLists.id, item.listId),
-          eq(shoppingLists.userId, userId)
-        )
-      );
-    
-    if (!listCheck.length) return null;
+    // Verify user has access to the shopping list (owner or family member)
+    const hasAccess = await userHasListAccess(item.listId, userId);
+    if (!hasAccess) return null;
 
     const normalizedName = normalizeIngredientName(item.name);
     const result = await db.insert(shoppingListItems).values({
@@ -478,41 +527,46 @@ export const storage = {
       .orderBy(desc(shoppingListItems.addedAt));
   },
 
-  async getShoppingListWithItems(listId: string, userId: string): Promise<{ list: ShoppingList; items: ShoppingListItem[] } | null> {
+  async getShoppingListWithItems(listId: string, userId: string): Promise<{ status: "ok" | "not_found" | "forbidden"; data?: { list: ShoppingList; items: ShoppingListItem[] } }> {
+    const access = await getListAccessState(listId, userId);
+    
+    if (!access.exists) {
+      return { status: "not_found" };
+    }
+    
+    if (!access.authorized) {
+      return { status: "forbidden" };
+    }
+
     const listResult = await db
       .select()
       .from(shoppingLists)
-      .where(
-        and(
-          eq(shoppingLists.id, listId),
-          eq(shoppingLists.userId, userId)
-        )
-      );
-    
-    if (!listResult.length) return null;
+      .where(eq(shoppingLists.id, listId));
     
     const items = await this.getShoppingListItems(listId);
     
     return {
-      list: listResult[0],
-      items,
+      status: "ok",
+      data: {
+        list: listResult[0],
+        items,
+      }
     };
   },
 
   async updateShoppingListItemStatus(itemId: string, userId: string, status: 'active' | 'bought' | 'pending_review'): Promise<ShoppingListItem | null> {
-    // Verify ownership through shopping list
-    const item = await db
+    // Get the item and its list
+    const itemData = await db
       .select({ item: shoppingListItems, list: shoppingLists })
       .from(shoppingListItems)
       .innerJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
-      .where(
-        and(
-          eq(shoppingListItems.id, itemId),
-          eq(shoppingLists.userId, userId)
-        )
-      );
+      .where(eq(shoppingListItems.id, itemId));
     
-    if (!item.length) return null;
+    if (!itemData.length) return null;
+
+    // Verify user has access to the list (owner or family member)
+    const hasAccess = await userHasListAccess(itemData[0].list.id, userId);
+    if (!hasAccess) return null;
 
     const result = await db
       .update(shoppingListItems)
@@ -526,19 +580,18 @@ export const storage = {
   },
 
   async assignShoppingListItem(itemId: string, userId: string, assignedToUserId: string | null): Promise<ShoppingListItem | null> {
-    // Verify ownership through shopping list
-    const item = await db
+    // Get the item and its list
+    const itemData = await db
       .select({ item: shoppingListItems, list: shoppingLists })
       .from(shoppingListItems)
       .innerJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
-      .where(
-        and(
-          eq(shoppingListItems.id, itemId),
-          eq(shoppingLists.userId, userId)
-        )
-      );
+      .where(eq(shoppingListItems.id, itemId));
     
-    if (!item.length) return null;
+    if (!itemData.length) return null;
+
+    // Verify user has access to the list (owner or family member)
+    const hasAccess = await userHasListAccess(itemData[0].list.id, userId);
+    if (!hasAccess) return null;
 
     const result = await db
       .update(shoppingListItems)
@@ -549,26 +602,71 @@ export const storage = {
   },
 
   async deleteShoppingListItem(itemId: string, userId: string): Promise<boolean> {
-    // Verify ownership through shopping list
-    const item = await db
+    // Get the item and its list
+    const itemData = await db
       .select({ item: shoppingListItems, list: shoppingLists })
       .from(shoppingListItems)
       .innerJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
-      .where(
-        and(
-          eq(shoppingListItems.id, itemId),
-          eq(shoppingLists.userId, userId)
-        )
-      );
+      .where(eq(shoppingListItems.id, itemId));
     
-    if (!item.length) return false;
+    if (!itemData.length) return false;
+
+    // Verify user has access to the list (owner or family member)
+    const hasAccess = await userHasListAccess(itemData[0].list.id, userId);
+    if (!hasAccess) return false;
 
     await db.delete(shoppingListItems).where(eq(shoppingListItems.id, itemId));
     return true;
   },
 
   // Inventory Review Queue
-  async addToReviewQueue(item: InsertInventoryReviewQueue): Promise<InventoryReviewQueue> {
+  async addToReviewQueue(item: InsertInventoryReviewQueue, requestingUserId: string): Promise<InventoryReviewQueue | null> {
+    let targetUserId = item.userId;
+    
+    // If this is linked to a shopping list item, validate it properly
+    if (item.sourceItemId) {
+      const sourceItemData = await db
+        .select({ item: shoppingListItems, list: shoppingLists })
+        .from(shoppingListItems)
+        .innerJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
+        .where(eq(shoppingListItems.id, item.sourceItemId));
+      
+      if (!sourceItemData.length) return null;
+
+      const list = sourceItemData[0].list;
+
+      // Verify requesting user has access to the source item's list
+      const hasAccess = await userHasListAccess(list.id, requestingUserId);
+      if (!hasAccess) return null;
+
+      // For list-linked items, ensure userId is either:
+      // 1. The list owner (most common case - items go to owner's inventory)
+      // 2. The requesting user (if they're adding to their own inventory)
+      // 3. A valid family member of the list
+      if (targetUserId !== list.userId && targetUserId !== requestingUserId) {
+        // Check if target user is a family member of this list
+        if (list.familyId) {
+          const memberCheck = await db
+            .select()
+            .from(familyMembers)
+            .where(
+              and(
+                eq(familyMembers.familyId, list.familyId),
+                eq(familyMembers.userId, targetUserId)
+              )
+            );
+          
+          if (!memberCheck.length) return null;
+        } else {
+          return null;
+        }
+      }
+    }
+    // If no source item, verify the item is being added by the user who will own it
+    else if (targetUserId !== requestingUserId) {
+      return null;
+    }
+
     const normalizedName = normalizeIngredientName(item.name);
     const result = await db.insert(inventoryReviewQueue).values({
       ...item,
@@ -783,13 +881,35 @@ export const storage = {
       .limit(limit);
   },
 
-  async markNotificationAsRead(notificationId: string): Promise<Notification> {
+  async markNotificationAsRead(notificationId: string, userId: string): Promise<{ status: "ok" | "not_found" | "forbidden"; data?: Notification }> {
+    // First check if notification exists
+    const existing = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, notificationId));
+    
+    if (!existing.length) {
+      return { status: "not_found" };
+    }
+    
+    // Check if user owns the notification
+    if (existing[0].userId !== userId) {
+      return { status: "forbidden" };
+    }
+    
+    // Update the notification
     const result = await db
       .update(notifications)
       .set({ readAt: new Date() })
-      .where(eq(notifications.id, notificationId))
+      .where(
+        and(
+          eq(notifications.id, notificationId),
+          eq(notifications.userId, userId)
+        )
+      )
       .returning();
-    return result[0];
+    
+    return { status: "ok", data: result[0] };
   },
 
   async markAllNotificationsAsRead(userId: string): Promise<void> {

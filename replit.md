@@ -172,3 +172,28 @@ Preferred communication style: Simple, everyday language.
 - `ISSUER_URL` - OpenID Connect issuer (defaults to Replit)
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` - AI service endpoint
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - AI service authentication
+- `RECIPE_API_KEY` - api-ninjas.com Recipe API key
+- `VITE_UNSPLASH_ACCESS_KEY` - Unsplash API for ingredient photos
+
+## Recent Changes
+
+### December 2024 - Storage Layer Security Hardening
+
+**Completed:**
+- ✅ Extended database schema with shopping_list_items, inventory_review_queue, notifications tables
+- ✅ Implemented ingredient normalization service with comprehensive mapping and edge case handling
+- ✅ Completed storage layer with comprehensive family member authorization
+- ✅ All shopping list operations support both owners and family members
+- ✅ Review queue validation prevents cross-tenant data escalation
+- ✅ Helper function `userHasListAccess()` ensures consistent authorization across all operations
+
+**Authorization Model:**
+- List owners: Full access to their shopping lists and items
+- Family members: Full access to family-shared lists (read, write, delete)
+- Review queue: Validated against list membership, prevents fabricated entries
+- All operations: Consistent authorization through `userHasListAccess()` helper
+
+**Next Steps:**
+1. Implement backend API routes for shopping lists, review queue, notifications
+2. Update frontend pages for all new features
+3. End-to-end testing with playwright
