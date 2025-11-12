@@ -26,21 +26,28 @@ export default function Recipes() {
     ingredientMatch: 50,
   });
 
-  const { data: recipes, isLoading } = useQuery<RecipeWithRating[]>({
+  const { data: recipes, isLoading, error } = useQuery<RecipeWithRating[]>({
     queryKey: ["/api/recipes", searchQuery, filters],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (filters.dietType !== "all") params.append("dietType", filters.dietType);
       if (filters.maxCalories < 2000) params.append("maxCalories", filters.maxCalories.toString());
-      if (filters.ingredientMatch > 0) params.append("ingredientMatch", filters.ingredientMatch.toString());
+      // Only send ingredientMatch if it's not the default value
+      if (filters.ingredientMatch > 0 && filters.ingredientMatch !== 50) {
+        params.append("ingredientMatch", filters.ingredientMatch.toString());
+      }
       
       const url = `/api/recipes${params.toString() ? `?${params.toString()}` : ""}`;
+      console.log("Fetching recipes from:", url);
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) {
+        console.error("Recipes API error:", res.status, res.statusText);
         throw new Error(`${res.status}: ${res.statusText}`);
       }
-      return await res.json();
+      const data = await res.json();
+      console.log("Recipes received:", data?.length || 0);
+      return data;
     },
   });
 
@@ -186,6 +193,19 @@ export default function Recipes() {
             <Skeleton key={i} className="h-80 rounded-xl" />
           ))}
         </div>
+      ) : error ? (
+        <Card className="p-12">
+          <div className="text-center">
+            <ChefHat className="w-16 h-16 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Error loading recipes</h3>
+            <p className="text-muted-foreground mb-4">
+              {error instanceof Error ? error.message : "Something went wrong"}
+            </p>
+            <Button onClick={() => window.location.reload()} data-testid="button-reload-recipes">
+              Reload Page
+            </Button>
+          </div>
+        </Card>
       ) : !recipes || recipes.length === 0 ? (
         <Card className="p-12">
           <div className="text-center">
