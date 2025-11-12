@@ -177,9 +177,11 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-### December 2024 - Storage Layer Security Hardening
+### December 2024 - Backend API Routes Implementation
 
 **Completed:**
+
+**Storage Layer Security (Phase 1):**
 - ✅ Extended database schema with shopping_list_items, inventory_review_queue, notifications tables
 - ✅ Implemented ingredient normalization service with comprehensive mapping and edge case handling
 - ✅ Completed storage layer with comprehensive family member authorization
@@ -187,13 +189,39 @@ Preferred communication style: Simple, everyday language.
 - ✅ Review queue validation prevents cross-tenant data escalation
 - ✅ Helper function `userHasListAccess()` ensures consistent authorization across all operations
 
+**Backend API Routes (Phase 2):**
+- ✅ Implemented 14 secure API routes across 4 feature areas:
+  - Shopping Lists: GET all, GET with items, POST create, PATCH update, DELETE
+  - Shopping List Items: POST add, PATCH update status, PATCH assign member, DELETE
+  - Review Queue: GET pending, POST add item, POST approve transfer, DELETE reject
+  - Notifications: GET recent, PATCH mark as read
+- ✅ Shared error response system with `sendError()` helper for consistent API contracts
+- ✅ Tri-state authorization pattern for core operations: `{status: "ok"|"not_found"|"forbidden", data?}`
+- ✅ Security hardening: all routes validate ownership and prevent cross-tenant access
+- ✅ All routes use Zod validation for request payloads
+- ✅ Architect-reviewed with PASS status and no security vulnerabilities
+
 **Authorization Model:**
 - List owners: Full access to their shopping lists and items
 - Family members: Full access to family-shared lists (read, write, delete)
 - Review queue: Validated against list membership, prevents fabricated entries
-- All operations: Consistent authorization through `userHasListAccess()` helper
+- Notifications: User-scoped queries prevent cross-tenant modification
+- All operations: Consistent authorization with proper 403/404 distinction
+
+**API Error Format:**
+```typescript
+{
+  status: "error",
+  message: string,
+  code?: string,         // e.g., "VALIDATION_ERROR", "FORBIDDEN", "NOT_FOUND"
+  issues?: ZodIssue[]    // Validation errors from Zod
+}
+```
 
 **Next Steps:**
-1. Implement backend API routes for shopping lists, review queue, notifications
-2. Update frontend pages for all new features
-3. End-to-end testing with playwright
+1. Implement frontend pages for shopping lists with family collaboration
+2. Add pending review tab to My Kitchen page
+3. Implement notifications UI with bell icon and unread count
+4. Update recipe detail page with ingredient availability indicators
+5. Add quick-add missing ingredients to shopping list feature
+6. End-to-end testing with playwright
