@@ -53,6 +53,8 @@ export interface NormalizedRecipe {
   servings: number;
   calories: number | null;
   dietType: string | null;
+  cuisine: string | null;
+  mealType: string | null;
   ingredients: Array<{ name: string; amount: string; unit: string; imageUrl?: string }>;
   instructions: string[];
   tags: string[];
@@ -102,6 +104,32 @@ function normalizeSpoonacularRecipe(recipe: SpoonacularRecipe): NormalizedRecipe
     else if (primaryDiet === 'gluten free') dietType = 'gluten-free';
   }
 
+  // Detect cuisine from cuisines array
+  let cuisine: string | null = null;
+  if (recipe.cuisines && recipe.cuisines.length > 0) {
+    const firstCuisine = recipe.cuisines[0].toLowerCase();
+    // Map to our cuisine options
+    if (firstCuisine.includes('italian')) cuisine = 'italian';
+    else if (firstCuisine.includes('mexican')) cuisine = 'mexican';
+    else if (firstCuisine.includes('chinese')) cuisine = 'chinese';
+    else if (firstCuisine.includes('indian')) cuisine = 'indian';
+    else if (firstCuisine.includes('japanese')) cuisine = 'japanese';
+    else if (firstCuisine.includes('thai')) cuisine = 'thai';
+    else if (firstCuisine.includes('french')) cuisine = 'french';
+    else if (firstCuisine.includes('mediterranean') || firstCuisine.includes('greek')) cuisine = 'mediterranean';
+    else if (firstCuisine.includes('american')) cuisine = 'american';
+  }
+
+  // Detect mealType from dishTypes
+  let mealType: string | null = null;
+  if (recipe.dishTypes && recipe.dishTypes.length > 0) {
+    const dishTypesStr = recipe.dishTypes.join(' ').toLowerCase();
+    if (dishTypesStr.includes('breakfast')) mealType = 'breakfast';
+    else if (dishTypesStr.includes('main course') || dishTypesStr.includes('dinner')) mealType = 'dinner';
+    else if (dishTypesStr.includes('lunch') || dishTypesStr.includes('salad') || dishTypesStr.includes('sandwich')) mealType = 'lunch';
+    else if (dishTypesStr.includes('snack') || dishTypesStr.includes('appetizer')) mealType = 'snack';
+  }
+
   // Generate tags
   const tags = [
     ...(recipe.cuisines || []),
@@ -124,6 +152,8 @@ function normalizeSpoonacularRecipe(recipe: SpoonacularRecipe): NormalizedRecipe
     servings: recipe.servings || 4,
     calories,
     dietType,
+    cuisine,
+    mealType,
     ingredients,
     instructions,
     tags,
@@ -137,6 +167,7 @@ function normalizeSpoonacularRecipe(recipe: SpoonacularRecipe): NormalizedRecipe
 async function fetchSpoonacularRecipes(params: {
   query?: string;
   cuisine?: string;
+  type?: string; // breakfast, lunch, dinner, snack
   diet?: string;
   maxCalories?: number;
   number?: number;
@@ -154,6 +185,7 @@ async function fetchSpoonacularRecipes(params: {
   
   if (params.query) queryParams.append('query', params.query);
   if (params.cuisine) queryParams.append('cuisine', params.cuisine);
+  if (params.type) queryParams.append('type', params.type);
   if (params.diet) queryParams.append('diet', params.diet);
   if (params.maxCalories) queryParams.append('maxCalories', params.maxCalories.toString());
   if (params.number) queryParams.append('number', params.number.toString());
@@ -185,6 +217,8 @@ const fetchSpoonacularRecipesMemoized = memoizee(fetchSpoonacularRecipes, {
 export async function searchSpoonacularRecipes(params: {
   searchQuery?: string;
   dietType?: string;
+  cuisine?: string;
+  mealType?: string;
   maxCalories?: number;
   limit?: number;
   offset?: number;
@@ -199,6 +233,22 @@ export async function searchSpoonacularRecipes(params: {
 
   if (params.searchQuery) {
     spoonacularParams.query = params.searchQuery;
+  }
+  
+  if (params.cuisine && params.cuisine !== 'all') {
+    spoonacularParams.cuisine = params.cuisine;
+  }
+  
+  if (params.mealType && params.mealType !== 'all') {
+    // Map our meal types to Spoonacular's type parameter
+    // Spoonacular supports: main course, side dish, dessert, appetizer, salad, bread, breakfast, soup, beverage, sauce, marinade, fingerfood, snack, drink
+    const mealTypeMap: Record<string, string> = {
+      'breakfast': 'breakfast',
+      'lunch': 'main course',
+      'dinner': 'main course',
+      'snack': 'snack',
+    };
+    spoonacularParams.type = mealTypeMap[params.mealType] || params.mealType;
   }
   
   if (params.dietType && params.dietType !== 'all') {

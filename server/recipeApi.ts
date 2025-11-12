@@ -25,6 +25,8 @@ export interface NormalizedRecipe {
   servings: number;
   calories: number | null;
   dietType: string | null;
+  cuisine: string | null;
+  mealType: string | null;
   ingredients: Array<{ name: string; amount: string; unit: string }>;
   instructions: string[];
   tags: string[];
@@ -93,16 +95,50 @@ function generateTags(recipe: RecipeApiResponse): string[] {
   const ingredients = recipe.ingredients.join(' ').toLowerCase();
   
   // Meal type tags
-  if (title.includes('breakfast') || ingredients.includes('egg')) tags.push('breakfast');
-  if (title.includes('lunch') || title.includes('salad')) tags.push('lunch');
-  if (title.includes('dinner') || title.includes('soup')) tags.push('dinner');
-  if (title.includes('dessert') || ingredients.includes('sugar')) tags.push('dessert');
+  if (title.includes('breakfast') || ingredients.includes('egg') || ingredients.includes('pancake') || ingredients.includes('waffle')) {
+    tags.push('breakfast');
+  }
+  if (title.includes('lunch') || title.includes('salad') || title.includes('sandwich')) {
+    tags.push('lunch');
+  }
+  if (title.includes('dinner') || title.includes('soup') || title.includes('stew') || title.includes('roast')) {
+    tags.push('dinner');
+  }
+  if (title.includes('dessert') || title.includes('cake') || title.includes('cookie')) {
+    tags.push('dessert');
+  }
+  if (title.includes('snack') || title.includes('appetizer')) {
+    tags.push('snack');
+  }
   
-  // Cuisine tags
-  if (title.includes('italian') || ingredients.includes('pasta')) tags.push('italian');
-  if (title.includes('mexican') || ingredients.includes('tortilla')) tags.push('mexican');
-  if (title.includes('asian') || ingredients.includes('soy sauce')) tags.push('asian');
-  if (title.includes('indian') || ingredients.includes('curry')) tags.push('indian');
+  // Cuisine tags - expanded to cover all UI options
+  if (title.includes('italian') || ingredients.includes('pasta') || ingredients.includes('parmesan') || ingredients.includes('mozzarella')) {
+    tags.push('italian');
+  }
+  if (title.includes('mexican') || ingredients.includes('tortilla') || ingredients.includes('salsa') || ingredients.includes('avocado') || title.includes('taco') || title.includes('burrito')) {
+    tags.push('mexican');
+  }
+  if (title.includes('chinese') || ingredients.includes('soy sauce') || ingredients.includes('ginger') || ingredients.includes('rice vinegar') || title.includes('stir fry')) {
+    tags.push('chinese');
+  }
+  if (title.includes('indian') || ingredients.includes('curry') || ingredients.includes('turmeric') || ingredients.includes('cumin') || ingredients.includes('garam masala')) {
+    tags.push('indian');
+  }
+  if (title.includes('japanese') || ingredients.includes('miso') || ingredients.includes('teriyaki') || ingredients.includes('wasabi') || title.includes('sushi')) {
+    tags.push('japanese');
+  }
+  if (title.includes('thai') || ingredients.includes('coconut milk') || ingredients.includes('lemongrass') || ingredients.includes('fish sauce') || title.includes('pad thai')) {
+    tags.push('thai');
+  }
+  if (title.includes('french') || ingredients.includes('butter') || ingredients.includes('cream') || title.includes('croissant') || title.includes('baguette')) {
+    tags.push('french');
+  }
+  if (title.includes('mediterranean') || ingredients.includes('olive oil') || ingredients.includes('feta') || ingredients.includes('hummus') || title.includes('greek')) {
+    tags.push('mediterranean');
+  }
+  if (title.includes('american') || ingredients.includes('bacon') || title.includes('burger') || title.includes('bbq') || title.includes('fried chicken')) {
+    tags.push('american');
+  }
   
   // Speed tags
   const servings = parseServings(recipe.servings);
@@ -118,6 +154,25 @@ function normalizeRecipe(apiRecipe: RecipeApiResponse): NormalizedRecipe {
   const dietType = detectDietType(apiRecipe.ingredients);
   const tags = generateTags(apiRecipe);
   
+  // Detect cuisine from tags
+  let cuisine: string | null = null;
+  if (tags.includes('italian')) cuisine = 'italian';
+  else if (tags.includes('mexican')) cuisine = 'mexican';
+  else if (tags.includes('chinese')) cuisine = 'chinese';
+  else if (tags.includes('indian')) cuisine = 'indian';
+  else if (tags.includes('japanese')) cuisine = 'japanese';
+  else if (tags.includes('thai')) cuisine = 'thai';
+  else if (tags.includes('french')) cuisine = 'french';
+  else if (tags.includes('mediterranean')) cuisine = 'mediterranean';
+  else if (tags.includes('american')) cuisine = 'american';
+
+  // Detect mealType from tags
+  let mealType: string | null = null;
+  if (tags.includes('breakfast')) mealType = 'breakfast';
+  else if (tags.includes('lunch')) mealType = 'lunch';
+  else if (tags.includes('dinner')) mealType = 'dinner';
+  else if (tags.includes('snack')) mealType = 'snack';
+  
   return {
     id: generateRecipeId(apiRecipe.title),
     name: apiRecipe.title,
@@ -128,6 +183,8 @@ function normalizeRecipe(apiRecipe: RecipeApiResponse): NormalizedRecipe {
     servings: parseServings(apiRecipe.servings),
     calories: null,
     dietType,
+    cuisine,
+    mealType,
     ingredients: parsedIngredients,
     instructions: [apiRecipe.instructions],
     tags,
@@ -182,6 +239,8 @@ export async function searchRecipes(params: {
   searchQuery?: string;
   ingredients?: string[];
   dietType?: string;
+  cuisine?: string;
+  mealType?: string;
   maxCalories?: number;
   limit?: number;
   offset?: number;
@@ -207,6 +266,20 @@ export async function searchRecipes(params: {
   // Apply frontend filters (skip if "all")
   if (params.dietType && params.dietType !== 'all') {
     recipes = recipes.filter(r => r.dietType === params.dietType);
+  }
+
+  // Post-filter by cuisine (check tags since API doesn't support it directly)
+  if (params.cuisine && params.cuisine !== 'all') {
+    recipes = recipes.filter(r => 
+      r.tags.some(tag => tag.toLowerCase() === params.cuisine?.toLowerCase())
+    );
+  }
+
+  // Post-filter by mealType (check tags since API doesn't support it directly)
+  if (params.mealType && params.mealType !== 'all') {
+    recipes = recipes.filter(r => 
+      r.tags.some(tag => tag.toLowerCase() === params.mealType?.toLowerCase())
+    );
   }
 
   if (params.maxCalories && params.maxCalories > 0) {

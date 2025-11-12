@@ -163,7 +163,7 @@ export function registerRoutes(app: Express) {
   // Recipe routes - merging external API with database recipes
   app.get("/api/recipes", optionalAuth, async (req, res) => {
     try {
-      const { search, dietType, maxCalories, limit, offset, ingredientMatch, restrictions } = req.query;
+      const { search, dietType, cuisine, mealType, maxCalories, limit, offset, ingredientMatch, restrictions } = req.query;
       const requestLimit = limit ? parseInt(limit as string) : 15; // Default to 15 recipes
       const matchThreshold = ingredientMatch ? parseInt(ingredientMatch as string) : 0;
       
@@ -190,6 +190,8 @@ export function registerRoutes(app: Express) {
         apiRecipes = await searchSpoonacularRecipes({
           searchQuery: search as string,
           dietType: dietType as string,
+          cuisine: cuisine as string,
+          mealType: mealType as string,
           maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
           limit: apiLimit,
           offset: offset ? parseInt(offset as string) : 0,
@@ -204,6 +206,8 @@ export function registerRoutes(app: Express) {
           apiRecipes = await searchRecipes({
             searchQuery: search as string,
             dietType: dietType as string,
+            cuisine: cuisine as string,
+            mealType: mealType as string,
             maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
             limit: apiLimit,
             offset: offset ? parseInt(offset as string) : 0,
@@ -219,6 +223,8 @@ export function registerRoutes(app: Express) {
       const dbRecipes = await storage.getRecipes({
         searchQuery: search as string,
         dietType: dietType as string,
+        cuisine: cuisine as string,
+        mealType: mealType as string,
         maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
         dietaryRestrictions: dietaryRestrictions.length > 0 ? dietaryRestrictions : undefined,
       });

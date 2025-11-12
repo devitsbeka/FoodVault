@@ -80,6 +80,8 @@ export const recipes = pgTable("recipes", {
   servings: integer("servings").default(4),
   calories: integer("calories"),
   dietType: varchar("diet_type"), // vegetarian, vegan, keto, etc.
+  cuisine: varchar("cuisine"), // italian, mexican, chinese, indian, etc.
+  mealType: varchar("meal_type"), // breakfast, lunch, dinner, snack
   ingredients: jsonb("ingredients").notNull(), // [{name, amount, unit}]
   instructions: text("instructions").array(),
   tags: text("tags").array(),

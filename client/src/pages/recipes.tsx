@@ -6,10 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search, SlidersHorizontal, Clock, Flame, ChefHat, Star } from "lucide-react";
+import { Search, Clock, Flame, ChefHat, Star } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,6 +24,8 @@ export default function Recipes() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
     dietType: "all",
+    cuisine: "all",
+    mealType: "all",
     maxCalories: 2000,
     ingredientMatch: 0, // Off by default
   });
@@ -35,6 +36,8 @@ export default function Recipes() {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (filters.dietType !== "all") params.append("dietType", filters.dietType);
+      if (filters.cuisine !== "all") params.append("cuisine", filters.cuisine);
+      if (filters.mealType !== "all") params.append("mealType", filters.mealType);
       if (filters.maxCalories < 2000) params.append("maxCalories", filters.maxCalories.toString());
       // Only send ingredientMatch if it's enabled (> 0)
       if (filters.ingredientMatch > 0) {
@@ -63,10 +66,33 @@ export default function Recipes() {
     { value: "gluten-free", label: "Gluten-Free" },
   ];
 
+  const cuisineOptions = [
+    { value: "all", label: "All Cuisines" },
+    { value: "italian", label: "Italian" },
+    { value: "mexican", label: "Mexican" },
+    { value: "chinese", label: "Chinese" },
+    { value: "indian", label: "Indian" },
+    { value: "japanese", label: "Japanese" },
+    { value: "thai", label: "Thai" },
+    { value: "french", label: "French" },
+    { value: "mediterranean", label: "Mediterranean" },
+    { value: "american", label: "American" },
+  ];
+
+  const mealTypeOptions = [
+    { value: "all", label: "All Meals" },
+    { value: "breakfast", label: "Breakfast" },
+    { value: "lunch", label: "Lunch" },
+    { value: "dinner", label: "Dinner" },
+    { value: "snack", label: "Snack" },
+  ];
+
   // Track recipe searches for smart recommendations
   useEffect(() => {
     const hasActiveSearch = searchQuery || 
                            filters.dietType !== "all" || 
+                           filters.cuisine !== "all" ||
+                           filters.mealType !== "all" ||
                            filters.maxCalories < 2000 || 
                            filters.ingredientMatch > 0;
     
@@ -82,7 +108,7 @@ export default function Recipes() {
         });
       });
     }
-  }, [recipes, user, searchQuery, filters.dietType, filters.maxCalories, filters.ingredientMatch]);
+  }, [recipes, user, searchQuery, filters.dietType, filters.cuisine, filters.mealType, filters.maxCalories, filters.ingredientMatch]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -94,136 +120,80 @@ export default function Recipes() {
         </p>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex gap-3">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <Input
-            placeholder="Search recipes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-            data-testid="input-search-recipes"
-          />
-        </div>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="outline" className="gap-2" data-testid="button-open-filters">
-              <SlidersHorizontal className="w-4 h-4" />
-              Filters
-            </Button>
-          </SheetTrigger>
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle>Recipe Filters</SheetTitle>
-              <SheetDescription>
-                Customize your recipe search preferences
-              </SheetDescription>
-            </SheetHeader>
-            <div className="space-y-6 mt-6">
-              <div>
-                <Label>Diet Type</Label>
-                <Select value={filters.dietType} onValueChange={(value) => setFilters({ ...filters, dietType: value })}>
-                  <SelectTrigger data-testid="select-diet-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dietOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Maximum Calories</Label>
-                <div className="pt-2">
-                  <Slider
-                    value={[filters.maxCalories]}
-                    onValueChange={([value]) => setFilters({ ...filters, maxCalories: value })}
-                    min={100}
-                    max={2000}
-                    step={50}
-                    data-testid="slider-calories"
-                  />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {filters.maxCalories} calories
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <Label className="flex items-center gap-2">
-                  <ChefHat className="w-4 h-4 text-primary" />
-                  Smart Recipes - Fridge Assisted
-                </Label>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Filter recipes based on ingredients you already have in your kitchen
-                </p>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Minimum overlap:</span>
-                    <span className="font-medium">{filters.ingredientMatch}%</span>
-                  </div>
-                  <Slider
-                    value={[filters.ingredientMatch]}
-                    onValueChange={([value]) => setFilters({ ...filters, ingredientMatch: value })}
-                    min={0}
-                    max={100}
-                    step={25}
-                    data-testid="slider-ingredient-match"
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground px-1">
-                    <span>Off</span>
-                    <span>25%</span>
-                    <span>50%</span>
-                    <span>75%</span>
-                    <span>100%</span>
-                  </div>
-                  {filters.ingredientMatch > 0 && (
-                    <p className="text-xs text-muted-foreground italic">
-                      Showing recipes with at least {filters.ingredientMatch}% of ingredients in your kitchen
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        <Input
+          placeholder="Search recipes..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+          data-testid="input-search-recipes"
+        />
       </div>
 
-      {/* Active Filters */}
-      {(filters.dietType !== "all" || filters.maxCalories !== 2000 || filters.ingredientMatch > 0) && (
-        <div className="flex gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground">Active filters:</span>
-          {filters.dietType !== "all" && (
-            <Badge variant="secondary" data-testid="badge-diet-filter">
-              {dietOptions.find(d => d.value === filters.dietType)?.label}
-            </Badge>
-          )}
-          {filters.maxCalories !== 2000 && (
-            <Badge variant="secondary" data-testid="badge-calories-filter">
-              Max {filters.maxCalories} cal
-            </Badge>
-          )}
-          {filters.ingredientMatch > 0 && (
-            <Badge variant="secondary" data-testid="badge-match-filter">
-              {filters.ingredientMatch}% fridge match
-            </Badge>
-          )}
+      {/* Inline Filters - Airbnb Style */}
+      <div className="flex flex-wrap gap-3">
+        {/* Cuisine Filter */}
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-sm font-medium text-muted-foreground">Cuisine:</span>
+          {cuisineOptions.map((option) => (
+            <Button
+              key={option.value}
+              variant={filters.cuisine === option.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilters({ ...filters, cuisine: option.value })}
+              data-testid={`filter-cuisine-${option.value}`}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Meal Type Filter */}
+        <div className="flex gap-2 flex-wrap items-center border-l pl-3">
+          <span className="text-sm font-medium text-muted-foreground">Meal:</span>
+          {mealTypeOptions.map((option) => (
+            <Button
+              key={option.value}
+              variant={filters.mealType === option.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilters({ ...filters, mealType: option.value })}
+              data-testid={`filter-meal-${option.value}`}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Diet Type Filter */}
+        <div className="flex gap-2 flex-wrap items-center border-l pl-3">
+          <span className="text-sm font-medium text-muted-foreground">Diet:</span>
+          {dietOptions.map((option) => (
+            <Button
+              key={option.value}
+              variant={filters.dietType === option.value ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFilters({ ...filters, dietType: option.value })}
+              data-testid={`filter-diet-${option.value}`}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Clear Filters */}
+        {(filters.dietType !== "all" || filters.cuisine !== "all" || filters.mealType !== "all") && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setFilters({ dietType: "all", maxCalories: 2000, ingredientMatch: 0 })}
-            className="h-6 px-2 text-xs"
+            onClick={() => setFilters({ ...filters, dietType: "all", cuisine: "all", mealType: "all" })}
             data-testid="button-clear-filters"
           >
-            Clear all
+            Clear filters
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Recipe Grid */}
       {isLoading ? (

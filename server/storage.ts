@@ -199,6 +199,8 @@ export const storage = {
   async getRecipes(filters?: {
     searchQuery?: string;
     dietType?: string;
+    cuisine?: string;
+    mealType?: string;
     maxCalories?: number;
     dietaryRestrictions?: string[];
   }): Promise<any[]> {
@@ -208,6 +210,14 @@ export const storage = {
     
     if (filters?.dietType && filters.dietType !== "all") {
       conditions.push(eq(recipes.dietType, filters.dietType));
+    }
+    
+    if (filters?.cuisine && filters.cuisine !== "all") {
+      conditions.push(eq(recipes.cuisine, filters.cuisine));
+    }
+    
+    if (filters?.mealType && filters.mealType !== "all") {
+      conditions.push(eq(recipes.mealType, filters.mealType));
     }
     
     if (filters?.maxCalories) {
