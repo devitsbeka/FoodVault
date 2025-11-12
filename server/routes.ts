@@ -1,7 +1,7 @@
 // Blueprint reference: javascript_log_in_with_replit, javascript_openai_ai_integrations
 import type { Express, Response } from "express";
 import { storage } from "./storage";
-import { isAuthenticated } from "./replitAuth";
+import { isAuthenticated, optionalAuth } from "./replitAuth";
 import { getChatCompletion } from "./openai";
 import { insertKitchenInventorySchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
@@ -80,7 +80,7 @@ export function registerRoutes(app: Express) {
   });
 
   // Recipe routes - merging external API with database recipes
-  app.get("/api/recipes", async (req, res) => {
+  app.get("/api/recipes", optionalAuth, async (req, res) => {
     try {
       const { search, dietType, maxCalories, limit, offset, ingredientMatch } = req.query;
       const requestLimit = limit ? parseInt(limit as string) : 15; // Default to 15 recipes

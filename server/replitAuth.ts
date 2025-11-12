@@ -159,3 +159,36 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return;
   }
 };
+
+// Optional authentication - populates req.user if authenticated, but doesn't block if not
+export const optionalAuth: RequestHandler = async (req, res, next) => {
+  const user = req.user as any;
+
+  // If not authenticated, just continue
+  if (!req.isAuthenticated() || !user?.expires_at) {
+    return next();
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  
+  // Token still valid, continue
+  if (now <= user.expires_at) {
+    return next();
+  }
+
+  // Try to refresh if expired
+  const refreshToken = user.refresh_token;
+  if (!refreshToken) {
+    return next(); // Continue without auth
+  }
+
+  try {
+    const config = await getOidcConfig();
+    const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
+    updateUserSession(user, tokenResponse);
+  } catch (error) {
+    // Refresh failed, but continue anyway (user will be treated as unauthenticated)
+  }
+  
+  next();
+};
