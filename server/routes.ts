@@ -759,62 +759,6 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/shopping-list-items/:itemId/status", isAuthenticated, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const { status } = req.body;
-      
-      if (!["active", "bought", "pending_review"].includes(status)) {
-        return sendError(res, 400, "Invalid status. Must be active, bought, or pending_review", "VALIDATION_ERROR");
-      }
-      
-      const item = await storage.updateShoppingListItemStatus(req.params.itemId, user.claims.sub, status);
-      
-      if (!item) {
-        return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
-      }
-      
-      res.json(item);
-    } catch (error) {
-      console.error("Error updating shopping list item status:", error);
-      sendError(res, 500, "Internal server error");
-    }
-  });
-
-  app.patch("/api/shopping-list-items/:itemId/assign", isAuthenticated, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const { assignedToUserId } = req.body;
-      
-      const item = await storage.assignShoppingListItem(req.params.itemId, user.claims.sub, assignedToUserId || null);
-      
-      if (!item) {
-        return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
-      }
-      
-      res.json(item);
-    } catch (error) {
-      console.error("Error assigning shopping list item:", error);
-      sendError(res, 500, "Internal server error");
-    }
-  });
-
-  app.delete("/api/shopping-list-items/:itemId", isAuthenticated, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const deleted = await storage.deleteShoppingListItem(req.params.itemId, user.claims.sub);
-      
-      if (!deleted) {
-        return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
-      }
-      
-      res.json({ message: "Shopping list item deleted" });
-    } catch (error) {
-      console.error("Error deleting shopping list item:", error);
-      sendError(res, 500, "Internal server error");
-    }
-  });
-
   // Inventory Review Queue routes
   app.get("/api/inventory-review-queue", isAuthenticated, async (req, res) => {
     try {
