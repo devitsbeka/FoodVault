@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { DiningTable } from "@/components/DiningTable";
+import { RecipePickerModal } from "@/components/RecipePickerModal";
 import {
   Select,
   SelectContent,
@@ -52,6 +53,18 @@ export default function MealPlanning() {
     }))
   );
   const [selectedSeatForConfig, setSelectedSeatForConfig] = useState<number | null>(null);
+  const [recipePickerOpen, setRecipePickerOpen] = useState(false);
+  const [seatForRecipePicker, setSeatForRecipePicker] = useState<number | null>(null);
+
+  // Get combined dietary restrictions from ALL active seats
+  const getCombinedDietaryRestrictions = (): string[] => {
+    const allRestrictions = seats
+      .slice(0, seatCount)
+      .flatMap(seat => seat.dietaryRestrictions);
+    
+    // Return unique restrictions
+    return Array.from(new Set(allRestrictions));
+  };
 
   // Update seats when seat count changes
   const handleSeatCountChange = (count: number) => {
@@ -94,11 +107,31 @@ export default function MealPlanning() {
   };
 
   const handleAddRecipe = (seatNumber: number) => {
+    setSeatForRecipePicker(seatNumber);
+    setRecipePickerOpen(true);
+  };
+
+  const handleRecipeSelection = (recipe: any) => {
+    if (seatForRecipePicker === null) return;
+    
+    setSeats(prev =>
+      prev.map(seat => {
+        if (seat.seatNumber === seatForRecipePicker) {
+          return {
+            ...seat,
+            recipeId: recipe.id,
+            recipeName: recipe.name,
+            recipeImage: recipe.imageUrl,
+          };
+        }
+        return seat;
+      })
+    );
+
     toast({
-      title: "Add Recipe",
-      description: `Opening recipe picker for Seat ${seatNumber}...`,
+      title: "Recipe assigned",
+      description: `${recipe.name} assigned to Seat ${seatForRecipePicker}`,
     });
-    // TODO: Open recipe picker modal (task 8)
   };
 
   return (
@@ -314,6 +347,15 @@ export default function MealPlanning() {
           </Card>
         </div>
       </div>
+
+      {/* Recipe Picker Modal */}
+      <RecipePickerModal
+        open={recipePickerOpen}
+        onOpenChange={setRecipePickerOpen}
+        onSelectRecipe={handleRecipeSelection}
+        combinedDietaryRestrictions={getCombinedDietaryRestrictions()}
+        seatNumber={seatForRecipePicker || 1}
+      />
     </div>
   );
 }

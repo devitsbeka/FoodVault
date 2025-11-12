@@ -113,10 +113,52 @@ export const storage = {
     return results;
   },
 
+  // Map dietary restrictions to tag requirements
+  mapDietaryRestrictionsToTags(restrictions: string[]): {
+    requiredTags: string[];
+    excludedTags: string[];
+  } {
+    const requiredTags: string[] = [];
+    const excludedTags: string[] = [];
+
+    restrictions.forEach(restriction => {
+      const normalized = restriction.toLowerCase();
+      switch (normalized) {
+        case 'vegan':
+          requiredTags.push('vegan');
+          break;
+        case 'vegetarian':
+          requiredTags.push('vegetarian');
+          break;
+        case 'gluten-free':
+          excludedTags.push('contains-gluten');
+          break;
+        case 'dairy-free':
+          excludedTags.push('contains-dairy');
+          break;
+        case 'nut-free':
+          excludedTags.push('contains-nuts');
+          break;
+        case 'halal':
+          requiredTags.push('halal');
+          break;
+        case 'kosher':
+          requiredTags.push('kosher');
+          break;
+        case 'low-carb':
+          requiredTags.push('low-carb');
+          break;
+      }
+    });
+
+    return { requiredTags, excludedTags };
+  },
+
   async getRecipes(filters?: {
     searchQuery?: string;
     dietType?: string;
     maxCalories?: number;
+    dietaryRestrictions?: string[];
   }): Promise<any[]> {
     let query = db.select().from(recipes);
     
@@ -129,9 +171,26 @@ export const storage = {
     if (filters?.maxCalories) {
       conditions.push(gte(recipes.calories, 0));
     }
+
+    // Apply dietary restriction filtering via tags
+    if (filters?.dietaryRestrictions && filters.dietaryRestrictions.length > 0) {
+      const { requiredTags, excludedTags } = this.mapDietaryRestrictionsToTags(
+        filters.dietaryRestrictions
+      );
+
+      // Required tags: recipe must have ALL of these
+      requiredTags.forEach(tag => {
+        conditions.push(sql<boolean>`${recipes.tags} @> ARRAY[${tag}]::text[]`);
+      });
+
+      // Excluded tags: recipe must NOT have ANY of these
+      excludedTags.forEach(tag => {
+        conditions.push(sql<boolean>`NOT (${recipes.tags} @> ARRAY[${tag}]::text[])`);
+      });
+    }
     
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      query = query.where(and(...conditions)) as any;
     }
     
     const results = await query.orderBy(desc(recipes.createdAt));

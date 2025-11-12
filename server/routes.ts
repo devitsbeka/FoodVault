@@ -91,9 +91,21 @@ export function registerRoutes(app: Express) {
   // Recipe routes - merging external API with database recipes
   app.get("/api/recipes", optionalAuth, async (req, res) => {
     try {
-      const { search, dietType, maxCalories, limit, offset, ingredientMatch } = req.query;
+      const { search, dietType, maxCalories, limit, offset, ingredientMatch, restrictions } = req.query;
       const requestLimit = limit ? parseInt(limit as string) : 15; // Default to 15 recipes
       const matchThreshold = ingredientMatch ? parseInt(ingredientMatch as string) : 0;
+      
+      // Parse dietary restrictions (comma-separated or JSON array)
+      let dietaryRestrictions: string[] = [];
+      if (restrictions) {
+        try {
+          dietaryRestrictions = typeof restrictions === 'string' 
+            ? restrictions.split(',').map(r => r.trim())
+            : Array.isArray(restrictions) ? restrictions as string[] : [];
+        } catch (e) {
+          console.error("Error parsing restrictions:", e);
+        }
+      }
       
       // Fetch recipes from external API with automatic fallback
       // Prioritize Spoonacular since it provides images (api-ninjas doesn't)
@@ -131,17 +143,28 @@ export function registerRoutes(app: Express) {
         }
       }
       
-      // Also get database recipes
+      // Get database recipes with dietary restriction filtering
       const dbRecipes = await storage.getRecipes({
         searchQuery: search as string,
         dietType: dietType as string,
         maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
+        dietaryRestrictions: dietaryRestrictions.length > 0 ? dietaryRestrictions : undefined,
       });
       
-      // Prioritize recipes with images: Spoonacular first, then DB recipes with images, then others
-      const recipesWithImages = apiRecipes.filter((r: any) => r.imageUrl);
+      // Handle external API recipes based on dietary restrictions
+      let filteredApiRecipes = apiRecipes;
+      if (dietaryRestrictions.length > 0) {
+        // When dietary restrictions are present, exclude ALL external recipes
+        // External recipes lack our tag taxonomy and cannot be reliably validated
+        // Only database recipes with proper tags can guarantee dietary compliance
+        filteredApiRecipes = [];
+        console.log(`Excluded all ${apiRecipes.length} external recipes due to dietary restrictions (DB recipes only)`);
+      }
+      
+      // Prioritize recipes with images: Filtered external first, then DB recipes with images, then others
+      const recipesWithImages = filteredApiRecipes.filter((r: any) => r.imageUrl);
       const dbWithImages = dbRecipes.filter((r: any) => r.imageUrl);
-      const recipesWithoutImages = [...apiRecipes.filter((r: any) => !r.imageUrl), ...dbRecipes.filter((r: any) => !r.imageUrl)];
+      const recipesWithoutImages = [...filteredApiRecipes.filter((r: any) => !r.imageUrl), ...dbRecipes.filter((r: any) => !r.imageUrl)];
       
       // Merge: prioritize image-bearing recipes
       let allRecipes = [...recipesWithImages, ...dbWithImages, ...recipesWithoutImages];
