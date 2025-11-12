@@ -235,111 +235,112 @@ export default function MyKitchen() {
       <Card className="mb-6">
         <CardContent className="p-6">
           <h2 className="text-title-2 mb-4">Add Ingredients</h2>
-              
-              <div className="space-y-4">
-                {/* Ingredient Autocomplete */}
-                <div>
-                  <Label htmlFor="ingredient-search">Search Ingredient</Label>
-                  <Popover open={open} onOpenChange={setOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        className="w-full justify-between"
-                        data-testid="button-ingredient-search"
-                      >
-                        {newItem.name || "Search for an ingredient..."}
-                        <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                      <Command shouldFilter={false}>
-                        <CommandInput 
-                          placeholder="Type to search ingredients..." 
-                          value={searchQuery}
-                          onValueChange={setSearchQuery}
-                          data-testid="input-ingredient-search"
-                        />
-                        <CommandList>
-                          {searchQuery.length < 2 ? (
-                            <CommandEmpty>Type at least 2 characters to search</CommandEmpty>
-                          ) : suggestionsLoading ? (
-                            <CommandEmpty>Loading suggestions...</CommandEmpty>
-                          ) : suggestions.length === 0 ? (
-                            <CommandEmpty>No ingredients found</CommandEmpty>
-                          ) : (
-                            <CommandGroup>
-                              {suggestions.map((suggestion) => (
-                                <CommandItem
-                                  key={suggestion.id}
-                                  value={suggestion.name}
-                                  onSelect={() => handleSelectIngredient(suggestion)}
-                                  data-testid={`suggestion-${suggestion.id}`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    {suggestion.imageUrl && (
-                                      <img 
-                                        src={suggestion.imageUrl} 
-                                        alt={suggestion.name}
-                                        className="w-8 h-8 rounded object-cover"
-                                      />
-                                    )}
-                                    <span>{suggestion.name}</span>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <div className="space-y-4">
+            {/* Ingredient Autocomplete */}
             <div>
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="0"
-                step="0.1"
-                value={newItem.quantity}
-                onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-                data-testid="input-quantity"
-              />
+              <Label htmlFor="ingredient-search">Search Ingredient</Label>
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between"
+                    data-testid="button-ingredient-search"
+                  >
+                    {newItem.name || "Search for an ingredient..."}
+                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Type to search ingredients..." 
+                      value={searchQuery}
+                      onValueChange={setSearchQuery}
+                      data-testid="input-ingredient-search"
+                    />
+                    <CommandList>
+                      {searchQuery.length < 2 ? (
+                        <CommandEmpty>Type at least 2 characters to search</CommandEmpty>
+                      ) : suggestionsLoading ? (
+                        <CommandEmpty>Loading suggestions...</CommandEmpty>
+                      ) : suggestions.length === 0 ? (
+                        <CommandEmpty>No ingredients found</CommandEmpty>
+                      ) : (
+                        <CommandGroup>
+                          {suggestions.map((suggestion) => (
+                            <CommandItem
+                              key={suggestion.id}
+                              value={suggestion.name}
+                              onSelect={() => handleSelectIngredient(suggestion)}
+                              data-testid={`suggestion-${suggestion.id}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                {suggestion.imageUrl && (
+                                  <img 
+                                    src={suggestion.imageUrl} 
+                                    alt={suggestion.name}
+                                    className="w-8 h-8 rounded object-cover"
+                                  />
+                                )}
+                                <span>{suggestion.name}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
-            <div>
-              <Label htmlFor="unit">Unit</Label>
-              <Input
-                id="unit"
-                placeholder="lbs, oz, pcs"
-                value={newItem.unit}
-                onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-                data-testid="input-unit"
-              />
-            </div>
-            <div>
-              <Label htmlFor="expiration">Expiration Date</Label>
-              <Input
-                id="expiration"
-                type="date"
-                value={newItem.expirationDate}
-                onChange={(e) => setNewItem({ ...newItem, expirationDate: e.target.value })}
-                data-testid="input-expiration"
-              />
-            </div>
-            <div className="flex items-end">
-              <Button 
-                onClick={handleAddItem} 
-                className="w-full gap-2"
-                disabled={addMutation.isPending || !newItem.name}
-                data-testid="button-save-item"
-              >
-                <Plus className="w-4 h-4" />
-                {addMutation.isPending ? "Adding..." : `Add to ${selectedCategory}`}
-              </Button>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="quantity">Quantity</Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={newItem.quantity}
+                  onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+                  data-testid="input-quantity"
+                />
+              </div>
+              <div>
+                <Label htmlFor="unit">Unit</Label>
+                <Input
+                  id="unit"
+                  placeholder="lbs, oz, pcs"
+                  value={newItem.unit}
+                  onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                  data-testid="input-unit"
+                />
+              </div>
+              <div>
+                <Label htmlFor="expiration">Expiration Date</Label>
+                <Input
+                  id="expiration"
+                  type="date"
+                  value={newItem.expirationDate}
+                  onChange={(e) => setNewItem({ ...newItem, expirationDate: e.target.value })}
+                  data-testid="input-expiration"
+                />
+              </div>
+              <div className="flex items-end">
+                <Button 
+                  onClick={handleAddItem} 
+                  className="w-full gap-2"
+                  disabled={addMutation.isPending || !newItem.name}
+                  data-testid="button-save-item"
+                >
+                  <Plus className="w-4 h-4" />
+                  {addMutation.isPending ? "Adding..." : `Add to ${selectedCategory}`}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
