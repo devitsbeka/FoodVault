@@ -1,7 +1,3 @@
-import { useState } from "react";
-import { Plus } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 interface Seat {
@@ -56,6 +52,15 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
         className="w-full h-auto"
         style={{ minHeight: "500px" }}
       >
+        {/* Define clip paths for circular recipe images */}
+        <defs>
+          {seatPositions.map((pos, index) => (
+            <clipPath key={`clip-${index + 1}`} id={`seat-clip-${index + 1}`}>
+              <circle cx={pos.x} cy={pos.y} r="50" />
+            </clipPath>
+          ))}
+        </defs>
+        
         {/* Dining table surface (oval) */}
         <ellipse
           cx="400"
@@ -83,7 +88,7 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
           
           return (
             <g key={seatNumber}>
-              {/* Plate circle */}
+              {/* Plate circle - keyboard accessible */}
               <circle
                 cx={pos.x}
                 cy={pos.y}
@@ -91,6 +96,15 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
                 className="fill-background stroke-border cursor-pointer hover-elevate active-elevate-2 transition-all"
                 strokeWidth="2"
                 onClick={() => onSeatClick(seatNumber)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSeatClick(seatNumber);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Seat ${seatNumber}${seat?.recipeName ? `: ${seat.recipeName}` : ''}`}
                 data-testid={`seat-plate-${seatNumber}`}
               />
               
@@ -101,12 +115,13 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
                 r="65"
                 className="fill-none stroke-muted-foreground/20"
                 strokeWidth="1"
+                pointerEvents="none"
               />
               
               {/* Content based on state */}
               {seat?.recipeId ? (
                 // Recipe assigned - show recipe card
-                <g>
+                <g pointerEvents="none">
                   {seat.recipeImage && (
                     <image
                       href={seat.recipeImage}
@@ -114,7 +129,7 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
                       y={pos.y - 50}
                       width="100"
                       height="100"
-                      clipPath={`circle(45px at ${pos.x}px ${pos.y}px)`}
+                      clipPath={`url(#seat-clip-${seatNumber})`}
                     />
                   )}
                   <text
@@ -122,17 +137,28 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
                     y={pos.y + 80}
                     textAnchor="middle"
                     className="fill-foreground text-sm font-medium"
+                    pointerEvents="none"
                   >
                     {seat.recipeName}
                   </text>
                 </g>
               ) : (
-                // Empty state - show + icon
+                // Empty state - show + icon (keyboard accessible)
                 <g
                   onClick={(e) => {
                     e.stopPropagation();
                     onAddRecipe(seatNumber);
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onAddRecipe(seatNumber);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Add recipe to seat ${seatNumber}`}
                   className="cursor-pointer"
                   data-testid={`button-add-recipe-${seatNumber}`}
                 >
@@ -149,6 +175,7 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
                     y2={pos.y + 15}
                     className="stroke-muted-foreground"
                     strokeWidth="3"
+                    pointerEvents="none"
                   />
                   <line
                     x1={pos.x - 15}
@@ -157,6 +184,7 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
                     y2={pos.y}
                     className="stroke-muted-foreground"
                     strokeWidth="3"
+                    pointerEvents="none"
                   />
                 </g>
               )}
@@ -167,17 +195,19 @@ export function DiningTable({ seatCount, seats, onSeatClick, onAddRecipe }: Dini
                 y={pos.y - 85}
                 textAnchor="middle"
                 className="fill-muted-foreground text-xs font-semibold"
+                pointerEvents="none"
               >
                 Seat {seatNumber}
               </text>
               
-              {/* Dietary restriction badges */}
+              {/* Dietary restriction badges - increased height to prevent clipping */}
               {seat && seat.dietaryRestrictions.length > 0 && (
                 <foreignObject
-                  x={pos.x - 60}
+                  x={pos.x - 70}
                   y={pos.y + 85}
-                  width="120"
-                  height="30"
+                  width="140"
+                  height="60"
+                  pointerEvents="none"
                 >
                   <div className="flex flex-wrap gap-1 justify-center">
                     {seat.dietaryRestrictions.map((restriction, i) => (
