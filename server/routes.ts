@@ -1,7 +1,8 @@
 // Blueprint reference: javascript_log_in_with_replit, javascript_openai_ai_integrations
 import type { Express, Response } from "express";
 import { storage } from "./storage";
-import { isAuthenticated, optionalAuth } from "./auth";
+import { isAuthenticated, optionalAuth, syncClerkUser } from "./clerkAuth";
+import { getAuth } from "@clerk/express";
 import { getChatCompletion, getProductRecommendations, getProductImageUrl } from "./openai";
 import { insertKitchenInventorySchema, insertKitchenEquipmentSchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
@@ -27,8 +28,12 @@ export function registerRoutes(app: Express) {
   // Auth routes
   app.get("/api/auth/user", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const dbUser = await storage.getUserById(user.id);
+      const { userId } = getAuth(req);
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const dbUser = await storage.getUserById(userId);
       if (!dbUser) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -42,8 +47,8 @@ export function registerRoutes(app: Express) {
   // Kitchen Inventory routes
   app.get("/api/kitchen-inventory", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const inventory = await storage.getKitchenInventory(user.id);
+      const { userId } = getAuth(req);
+      const inventory = await storage.getKitchenInventory(userId);
       res.json(inventory);
     } catch (error) {
       console.error("Error getting inventory:", error);
@@ -53,7 +58,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/kitchen-inventory", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const validatedData = insertKitchenInventorySchema.parse(req.body);
       
       // Fetch ingredient image if not provided
@@ -65,7 +70,7 @@ export function registerRoutes(app: Express) {
       const item = await storage.addKitchenItem({
         ...validatedData,
         imageUrl: imageUrl || null,
-        userId: user.id,
+        userId: userId,
       });
       res.json(item);
     } catch (error: any) {
@@ -79,8 +84,8 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/kitchen-inventory/:id", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      await storage.deleteKitchenItem(req.params.id, user.id);
+      const { userId } = getAuth(req);
+      await storage.deleteKitchenItem(req.params.id, userId);
       res.json({ message: "Item deleted" });
     } catch (error) {
       console.error("Error deleting inventory item:", error);
@@ -91,9 +96,9 @@ export function registerRoutes(app: Express) {
   // Kitchen Equipment routes
   app.get("/api/kitchen-equipment", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const location = req.query.location as 'indoor' | 'outdoor' | undefined;
-      const equipment = await storage.getKitchenEquipment(user.id, location);
+      const equipment = await storage.getKitchenEquipment(userId, location);
       res.json(equipment);
     } catch (error) {
       console.error("Error getting kitchen equipment:", error);
@@ -103,7 +108,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/kitchen-equipment", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const validatedData = insertKitchenEquipmentSchema.parse(req.body);
       
       let imageUrl = validatedData.imageUrl;
@@ -118,7 +123,7 @@ export function registerRoutes(app: Express) {
       const equipment = await storage.upsertKitchenEquipment({
         ...validatedData,
         imageUrl: imageUrl || null,
-        userId: user.id,
+        userId: userId,
       });
       res.json(equipment);
     } catch (error: any) {
@@ -133,8 +138,8 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/kitchen-equipment/:id", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      await storage.deleteKitchenEquipment(req.params.id, user.id);
+      const { userId } = getAuth(req);
+      await storage.deleteKitchenEquipment(req.params.id, userId);
       res.json({ message: "Equipment deleted" });
     } catch (error) {
       console.error("Error deleting kitchen equipment:", error);
@@ -400,7 +405,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/recipes/:id/rate", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { rating, comment } = req.body;
 
       if (typeof rating !== "number" || rating < 1 || rating > 5) {
@@ -409,7 +414,7 @@ export function registerRoutes(app: Express) {
 
       await storage.rateRecipe({
         recipeId: req.params.id,
-        userId: user.id,
+        userId: userId,
         rating,
         comment: comment || null,
       });
@@ -423,8 +428,8 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/recipes/recommended", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const recipes = await storage.getRecommendedRecipes(user.id);
+      const { userId } = getAuth(req);
+      const recipes = await storage.getRecommendedRecipes(userId);
       res.json(recipes);
     } catch (error) {
       console.error("Error getting recommended recipes:", error);
@@ -459,11 +464,11 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/recipes/:id/ratings", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const validatedData = insertRecipeRatingSchema.parse({
         ...req.body,
         recipeId: req.params.id,
-        userId: user.id,
+        userId: userId,
       });
       const rating = await storage.addRecipeRating(validatedData);
       res.json(rating);
@@ -479,7 +484,7 @@ export function registerRoutes(app: Express) {
   // Recipe Interactions - Track views and searches for smart recommendations
   app.post("/api/recipe-interactions", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { recipeId, interactionType } = req.body;
 
       if (!recipeId || !interactionType) {
@@ -491,9 +496,9 @@ export function registerRoutes(app: Express) {
       }
 
       if (interactionType === 'view') {
-        await storage.trackRecipeView(user.id, recipeId);
+        await storage.trackRecipeView(userId, recipeId);
       } else {
-        await storage.trackRecipeSearch(user.id, recipeId);
+        await storage.trackRecipeSearch(userId, recipeId);
       }
 
       res.json({ success: true });
@@ -506,8 +511,8 @@ export function registerRoutes(app: Express) {
   // Meal Plan routes
   app.get("/api/meal-plans", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const mealPlans = await storage.getMealPlans(user.id);
+      const { userId } = getAuth(req);
+      const mealPlans = await storage.getMealPlans(userId);
       res.json(mealPlans);
     } catch (error) {
       console.error("Error getting meal plans:", error);
@@ -517,8 +522,8 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/meal-plans/upcoming", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const upcomingMeals = await storage.getUpcomingMeals(user.id);
+      const { userId } = getAuth(req);
+      const upcomingMeals = await storage.getUpcomingMeals(userId);
       res.json(upcomingMeals);
     } catch (error) {
       console.error("Error getting upcoming meals:", error);
@@ -528,10 +533,10 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/meal-plans", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const validatedData = insertMealPlanSchema.parse({
         ...req.body,
-        userId: user.id,
+        userId: userId,
       });
       const mealPlan = await storage.addMealPlan(validatedData);
       res.json(mealPlan);
@@ -546,11 +551,11 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/meal-plans/:id/vote", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const validatedData = insertMealVoteSchema.parse({
         ...req.body,
         mealPlanId: req.params.id,
-        userId: user.id,
+        userId: userId,
       });
       const result = await storage.voteMealPlan(validatedData);
       res.json(result);
@@ -566,7 +571,7 @@ export function registerRoutes(app: Express) {
   // Meal Seat Management routes
   app.get("/api/meal-plans/detail", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { date, familyId } = req.query;
 
       if (!date || typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -575,14 +580,14 @@ export function registerRoutes(app: Express) {
 
       // Authorization: If familyId is provided, verify user is a member
       if (familyId) {
-        const isMember = await storage.isUserFamilyMember(user.id, familyId as string);
+        const isMember = await storage.isUserFamilyMember(userId, familyId as string);
         if (!isMember) {
           return res.status(403).json({ message: "Forbidden: You are not a member of this family" });
         }
       }
 
       const result = await storage.getMealPlanByDate({
-        userId: familyId ? undefined : user.id,
+        userId: familyId ? undefined : userId,
         familyId: familyId as string | undefined,
         date,
       });
@@ -600,7 +605,7 @@ export function registerRoutes(app: Express) {
 
   app.put("/api/meal-plans", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { date, familyId, seats } = req.body;
 
       // Validation
@@ -630,14 +635,14 @@ export function registerRoutes(app: Express) {
 
       // Authorization: If familyId is provided, verify user is a member
       if (familyId) {
-        const isMember = await storage.isUserFamilyMember(user.id, familyId);
+        const isMember = await storage.isUserFamilyMember(userId, familyId);
         if (!isMember) {
           return res.status(403).json({ message: "Forbidden: You are not a member of this family" });
         }
       }
 
       const result = await storage.upsertMealPlanWithSeats({
-        userId: familyId ? undefined : user.id,
+        userId: familyId ? undefined : userId,
         familyId: familyId || undefined,
         date,
         seats,
@@ -655,7 +660,7 @@ export function registerRoutes(app: Express) {
 
   app.put("/api/meal-plans/:planId/seats/:seatId/assignment", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { recipeId } = req.body;
 
       if (!recipeId || typeof recipeId !== "string") {
@@ -663,7 +668,7 @@ export function registerRoutes(app: Express) {
       }
 
       // Authorization: Verify user has access to this meal plan
-      const hasAccess = await storage.userHasMealPlanAccess(user.id, req.params.planId);
+      const hasAccess = await storage.userHasMealPlanAccess(userId, req.params.planId);
       if (!hasAccess) {
         return res.status(403).json({ message: "Forbidden: You do not have access to this meal plan" });
       }
@@ -682,10 +687,10 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/meal-plans/:planId/seats/:seatId/assignment", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
 
       // Authorization: Verify user has access to this meal plan
-      const hasAccess = await storage.userHasMealPlanAccess(user.id, req.params.planId);
+      const hasAccess = await storage.userHasMealPlanAccess(userId, req.params.planId);
       if (!hasAccess) {
         return res.status(403).json({ message: "Forbidden: You do not have access to this meal plan" });
       }
@@ -701,8 +706,8 @@ export function registerRoutes(app: Express) {
   // AI Chat routes
   app.get("/api/chat/messages", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const messages = await storage.getChatMessages(user.id);
+      const { userId } = getAuth(req);
+      const messages = await storage.getChatMessages(userId);
       res.json(messages);
     } catch (error) {
       console.error("Error getting chat messages:", error);
@@ -712,7 +717,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/chat/messages", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { content } = req.body;
 
       if (!content || typeof content !== "string") {
@@ -720,16 +725,16 @@ export function registerRoutes(app: Express) {
       }
 
       await storage.addChatMessage({
-        userId: user.id,
+        userId: userId,
         role: "user",
         content,
       });
 
       // Get user context for AI
-      const userProfile = await storage.getUserById(user.id);
-      const inventory = await storage.getKitchenInventory(user.id);
-      const upcomingMeals = await storage.getUpcomingMeals(user.id);
-      const family = await storage.getFamily(user.id);
+      const userProfile = await storage.getUserById(userId);
+      const inventory = await storage.getKitchenInventory(userId);
+      const upcomingMeals = await storage.getUpcomingMeals(userId);
+      const family = await storage.getFamily(userId);
       // Get limited recipe summaries for AI context (optimized query)
       const recipeSummaries = await storage.getRecipeSummaries(15);
       
@@ -795,7 +800,7 @@ export function registerRoutes(app: Express) {
       contextInfo += `When suggesting recipes, prioritize recipes from our database and consider the user's preferences, available ingredients, and upcoming meals.\n\n`;
       contextInfo += `If the user asks to create a shopping list, provide a clear formatted list. Users can then save these suggestions to their shopping lists.`;
 
-      const conversationHistory = await storage.getChatMessages(user.id);
+      const conversationHistory = await storage.getChatMessages(userId);
       
       const systemMessage = {
         role: "system",
@@ -810,7 +815,7 @@ export function registerRoutes(app: Express) {
       const aiResponse = await getChatCompletion(messages);
 
       const assistantMessage = await storage.addChatMessage({
-        userId: user.id,
+        userId: userId,
         role: "assistant",
         content: aiResponse,
       });
@@ -825,8 +830,8 @@ export function registerRoutes(app: Express) {
   // Family routes
   app.get("/api/family", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const family = await storage.getFamily(user.id);
+      const { userId } = getAuth(req);
+      const family = await storage.getFamily(userId);
       res.json(family);
     } catch (error) {
       console.error("Error getting family:", error);
@@ -836,7 +841,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/family", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { name } = req.body;
       
       if (!name || typeof name !== "string") {
@@ -845,12 +850,12 @@ export function registerRoutes(app: Express) {
 
       const family = await storage.createFamily({
         name,
-        createdById: user.id,
+        createdById: userId,
       });
 
       await storage.addFamilyMember({
         familyId: family.id,
-        userId: user.id,
+        userId: userId,
         role: "admin",
       });
 
@@ -863,7 +868,7 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/family/members", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { email } = req.body;
       
       if (!email || typeof email !== "string" || !email.includes("@")) {
@@ -871,12 +876,12 @@ export function registerRoutes(app: Express) {
       }
 
       // Get requester's family and verify they're admin
-      const family = await storage.getFamily(user.id);
+      const family = await storage.getFamily(userId);
       if (!family) {
         return sendError(res, 404, "You are not part of a family", "NOT_FOUND");
       }
 
-      const requesterMembership = family.members.find(m => m.user.id === user.id);
+      const requesterMembership = family.members.find(m => m.userId === userId);
       if (!requesterMembership || requesterMembership.role !== "admin") {
         return sendError(res, 403, "Only family admins can invite members", "FORBIDDEN");
       }
@@ -888,7 +893,7 @@ export function registerRoutes(app: Express) {
       }
 
       // Check if already a member
-      const existingMember = family.members.find(m => m.user.id === invitedUser.id);
+      const existingMember = family.members.find(m => m.userId === invitedUser.id);
       if (existingMember) {
         return res.status(409).json({ 
           message: "User is already a family member",
@@ -918,10 +923,10 @@ export function registerRoutes(app: Express) {
   if (process.env.NODE_ENV === "development") {
     app.post("/api/dev/seed-family", isAuthenticated, async (req, res) => {
       try {
-        const user = req.user as any;
+        const { userId } = getAuth(req);
         
         // Get or create family
-        let family = await storage.getFamily(user.id);
+        let family = await storage.getFamily(userId);
         if (!family) {
           return sendError(res, 404, "You must create a family first", "NOT_FOUND");
         }
@@ -953,7 +958,7 @@ export function registerRoutes(app: Express) {
 
           if (existingUser) {
             // Check if already a family member
-            const alreadyMember = family.members.find(m => m.user.id === existingUser.id);
+            const alreadyMember = family.members.find(m => m.userId === existingUser.id);
             if (!alreadyMember) {
               const newMember = await storage.addFamilyMember({
                 familyId: family.id,
@@ -982,8 +987,8 @@ export function registerRoutes(app: Express) {
   // Shopping List routes
   app.get("/api/shopping-lists", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const lists = await storage.getShoppingLists(user.id);
+      const { userId } = getAuth(req);
+      const lists = await storage.getShoppingLists(userId);
       res.json(lists);
     } catch (error) {
       console.error("Error getting shopping lists:", error);
@@ -993,8 +998,8 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/shopping-lists/:id", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const result = await storage.getShoppingListWithItems(req.params.id, user.id);
+      const { userId } = getAuth(req);
+      const result = await storage.getShoppingListWithItems(req.params.id, userId);
       
       if (result.status === "not_found") {
         return sendError(res, 404, "Shopping list not found", "NOT_FOUND");
@@ -1013,10 +1018,10 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/shopping-lists", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const validatedData = insertShoppingListSchema.parse({
         ...req.body,
-        userId: user.id,
+        userId: userId,
       });
       const list = await storage.createShoppingList(validatedData);
       res.json(list);
@@ -1031,9 +1036,9 @@ export function registerRoutes(app: Express) {
 
   app.patch("/api/shopping-lists/:id", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { name } = req.body;
-      const result = await storage.updateShoppingList(req.params.id, user.id, name);
+      const result = await storage.updateShoppingList(req.params.id, userId, name);
       
       if (result.status === "not_found") {
         return sendError(res, 404, "Shopping list not found", "NOT_FOUND");
@@ -1052,8 +1057,8 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/shopping-lists/:id", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const result = await storage.deleteShoppingList(req.params.id, user.id);
+      const { userId } = getAuth(req);
+      const result = await storage.deleteShoppingList(req.params.id, userId);
       
       if (result.status === "not_found") {
         return sendError(res, 404, "Shopping list not found", "NOT_FOUND");
@@ -1072,8 +1077,8 @@ export function registerRoutes(app: Express) {
 
   app.get("/api/shopping-lists/suggestions/meal-plans", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const suggestions = await storage.getShoppingListSuggestions(user.id);
+      const { userId } = getAuth(req);
+      const suggestions = await storage.getShoppingListSuggestions(userId);
       res.json(suggestions);
     } catch (error) {
       console.error("Error getting shopping list suggestions:", error);
@@ -1085,7 +1090,7 @@ export function registerRoutes(app: Express) {
   // Shopping List Item routes
   app.patch("/api/shopping-lists/:listId/items/:itemId/status", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { itemId } = req.params;
       
       // Validate status
@@ -1098,7 +1103,7 @@ export function registerRoutes(app: Express) {
       
       const result = await storage.updateShoppingListItemStatus(
         itemId,
-        user.id,
+        userId,
         validatedData.status
       );
       
@@ -1118,7 +1123,7 @@ export function registerRoutes(app: Express) {
 
   app.patch("/api/shopping-lists/:listId/items/:itemId/assign", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { itemId } = req.params;
       
       // Validate assignedToUserId
@@ -1127,7 +1132,7 @@ export function registerRoutes(app: Express) {
       
       const result = await storage.assignShoppingListItem(
         itemId,
-        user.id,
+        userId,
         validatedData.assignedToUserId || null
       );
       
@@ -1147,10 +1152,10 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/shopping-lists/:listId/items/:itemId", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const { itemId } = req.params;
       
-      const result = await storage.deleteShoppingListItem(itemId, user.id);
+      const result = await storage.deleteShoppingListItem(itemId, userId);
       
       if (!result) {
         return sendError(res, 404, "Shopping list item not found or access denied", "NOT_FOUND");
@@ -1165,13 +1170,13 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/shopping-lists/:listId/items", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const validatedData = insertShoppingListItemSchema.parse({
         ...req.body,
         listId: req.params.listId,
       });
       
-      const item = await storage.addShoppingListItem(validatedData, user.id);
+      const item = await storage.addShoppingListItem(validatedData, userId);
       
       if (!item) {
         return sendError(res, 403, "Access denied to this shopping list", "FORBIDDEN");
@@ -1190,8 +1195,8 @@ export function registerRoutes(app: Express) {
   // Inventory Review Queue routes
   app.get("/api/inventory-review-queue", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const items = await storage.getPendingReviewItems(user.id);
+      const { userId } = getAuth(req);
+      const items = await storage.getPendingReviewItems(userId);
       res.json(items);
     } catch (error) {
       console.error("Error getting pending review items:", error);
@@ -1201,10 +1206,10 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/inventory-review-queue", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       const validatedData = insertInventoryReviewQueueSchema.parse(req.body);
       
-      const item = await storage.addToReviewQueue(validatedData, user.id);
+      const item = await storage.addToReviewQueue(validatedData, userId);
       
       if (!item) {
         return sendError(res, 403, "Access denied or invalid review queue entry", "FORBIDDEN");
@@ -1222,10 +1227,10 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/inventory-review-queue/:itemId/approve", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
+      const { userId } = getAuth(req);
       // Note: category and expirationDate not yet supported by storage method
       // Uses categoryGuess from review item itself
-      const result = await storage.approveReviewItem(req.params.itemId, user.id);
+      const result = await storage.approveReviewItem(req.params.itemId, userId);
       
       if (!result) {
         return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
@@ -1240,8 +1245,8 @@ export function registerRoutes(app: Express) {
 
   app.delete("/api/inventory-review-queue/:itemId", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const deleted = await storage.rejectReviewItem(req.params.itemId, user.id);
+      const { userId } = getAuth(req);
+      const deleted = await storage.rejectReviewItem(req.params.itemId, userId);
       
       if (!deleted) {
         return sendError(res, 403, "Access denied or item not found", "FORBIDDEN");
@@ -1257,8 +1262,8 @@ export function registerRoutes(app: Express) {
   // Notifications routes
   app.get("/api/notifications", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const notifications = await storage.getRecentNotifications(user.id, 50);
+      const { userId } = getAuth(req);
+      const notifications = await storage.getRecentNotifications(userId, 50);
       res.json(notifications);
     } catch (error) {
       console.error("Error getting notifications:", error);
@@ -1268,8 +1273,8 @@ export function registerRoutes(app: Express) {
 
   app.patch("/api/notifications/:notificationId/read", isAuthenticated, async (req, res) => {
     try {
-      const user = req.user as any;
-      const result = await storage.markNotificationAsRead(req.params.notificationId, user.id);
+      const { userId } = getAuth(req);
+      const result = await storage.markNotificationAsRead(req.params.notificationId, userId);
       
       if (result.status === "not_found") {
         return sendError(res, 404, "Notification not found", "NOT_FOUND");
