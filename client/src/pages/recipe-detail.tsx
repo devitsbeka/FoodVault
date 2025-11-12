@@ -315,19 +315,94 @@ export default function RecipeDetail() {
 
       {/* Ingredients */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
           <CardTitle>Ingredients</CardTitle>
+          {user && recipe?.missingIngredients && recipe.missingIngredients.length > 0 && (
+            <Dialog open={isAddToListDialogOpen} onOpenChange={setIsAddToListDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline" data-testid="button-add-missing-to-list">
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  Add Missing ({recipe.missingIngredients.length})
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add to Shopping List</DialogTitle>
+                  <DialogDescription>
+                    Select a shopping list to add the missing ingredients
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="shopping-list">Shopping List</Label>
+                    <Select value={selectedListId} onValueChange={setSelectedListId}>
+                      <SelectTrigger id="shopping-list" className="mt-2" data-testid="select-shopping-list">
+                        <SelectValue placeholder="Select a list" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {shoppingLists?.map((list) => (
+                          <SelectItem key={list.id} value={list.id} data-testid={`option-list-${list.id}`}>
+                            {list.name}
+                          </SelectItem>
+                        ))}
+                        {(!shoppingLists || shoppingLists.length === 0) && (
+                          <div className="p-2 text-sm text-muted-foreground">
+                            No shopping lists found
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Missing Ingredients ({recipe.missingIngredients.length})</Label>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {recipe.missingIngredients.map((ing, idx) => (
+                        <div key={idx} className="text-sm flex items-center gap-2 p-2 rounded-md bg-muted/50">
+                          <Plus className="w-3 h-3 text-muted-foreground" />
+                          <span>{ing.amount} {ing.unit} {ing.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleAddToList}
+                    className="w-full"
+                    disabled={!selectedListId || addToListMutation.isPending}
+                    data-testid="button-confirm-add-to-list"
+                  >
+                    {addToListMutation.isPending ? "Adding..." : "Add to List"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">
-            {ingredients.map((ingredient, index) => (
-              <li key={index} className="flex items-baseline gap-2">
-                <span className="text-muted-foreground">•</span>
-                <span>
-                  {ingredient.amount} {ingredient.unit} {ingredient.name}
-                </span>
-              </li>
-            ))}
+            {ingredients.map((ingredient, index) => {
+              const availability = user ? checkIngredientAvailability(ingredient.name) : null;
+              return (
+                <li key={index} className="flex items-center justify-between gap-2" data-testid={`ingredient-${index}`}>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-muted-foreground">•</span>
+                    <span>
+                      {ingredient.amount} {ingredient.unit} {ingredient.name}
+                    </span>
+                  </div>
+                  {availability === "owned" && (
+                    <Badge variant="secondary" className="gap-1" data-testid={`badge-owned-${index}`}>
+                      <Check className="w-3 h-3" />
+                      In Kitchen
+                    </Badge>
+                  )}
+                  {availability === "missing" && (
+                    <Badge variant="outline" className="gap-1" data-testid={`badge-missing-${index}`}>
+                      Missing
+                    </Badge>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </CardContent>
       </Card>
