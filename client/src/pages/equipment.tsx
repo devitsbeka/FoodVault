@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,18 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { IndoorKitchenLayout } from "@/components/equipment/indoor-kitchen-layout";
 import { OutdoorKitchenLayout } from "@/components/equipment/outdoor-kitchen-layout";
-import { UtensilsCrossed, Flame } from "lucide-react";
+import { UtensilsCrossed, Flame, Loader2, Star, ShoppingCart } from "lucide-react";
 import type { KitchenEquipment } from "@shared/schema";
+
+interface ProductRecommendation {
+  name: string;
+  brand: string;
+  price: string;
+  imageUrl: string;
+  features: string[];
+  rating: number;
+  description: string;
+}
 
 type KitchenSize = "small" | "medium" | "large";
 type KitchenLocation = "indoor" | "outdoor";
