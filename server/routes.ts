@@ -81,8 +81,9 @@ export function registerRoutes(app: Express) {
   // Recipe routes - merging external API with database recipes
   app.get("/api/recipes", async (req, res) => {
     try {
-      const { search, dietType, maxCalories, limit, offset } = req.query;
+      const { search, dietType, maxCalories, limit, offset, ingredientMatch } = req.query;
       const requestLimit = limit ? parseInt(limit as string) : 15; // Default to 15 recipes
+      const matchThreshold = ingredientMatch ? parseInt(ingredientMatch as string) : 0;
       
       // Fetch recipes from external API
       let apiRecipes: any[] = [];
@@ -91,7 +92,7 @@ export function registerRoutes(app: Express) {
           searchQuery: search as string,
           dietType: dietType as string,
           maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
-          limit: requestLimit,
+          limit: requestLimit * 2, // Fetch more since we'll filter by ingredients
           offset: offset ? parseInt(offset as string) : 0,
         });
       } catch (apiError) {
@@ -106,10 +107,46 @@ export function registerRoutes(app: Express) {
         maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
       });
       
-      // Merge API and database recipes, limit to requested amount
-      const allRecipes = [...apiRecipes, ...dbRecipes].slice(0, requestLimit);
+      // Merge all recipes
+      let allRecipes = [...apiRecipes, ...dbRecipes];
       
-      res.json(allRecipes);
+      // Apply ingredient matching filter if requested and user is authenticated
+      if (matchThreshold > 0 && req.user) {
+        const userId = (req.user as any)?.claims?.sub;
+        if (userId) {
+          const inventory = await storage.getKitchenInventory(userId);
+          const inventoryMap = new Map(
+            inventory.map(item => [
+              item.normalizedName || normalizeIngredientName(item.name),
+              item
+            ])
+          );
+          
+          // Calculate match percentage for each recipe and filter
+          allRecipes = allRecipes
+            .map((recipe: any) => {
+              const ingredients = recipe.ingredients || [];
+              if (ingredients.length === 0) {
+                return { ...recipe, matchPercentage: 0 };
+              }
+              
+              const ownedCount = ingredients.filter((ing: any) => {
+                const normalized = normalizeIngredientName(ing.name);
+                return inventoryMap.has(normalized);
+              }).length;
+              
+              const matchPercentage = Math.round((ownedCount / ingredients.length) * 100);
+              return { ...recipe, matchPercentage };
+            })
+            .filter((recipe: any) => recipe.matchPercentage >= matchThreshold)
+            .sort((a: any, b: any) => (b.matchPercentage || 0) - (a.matchPercentage || 0)); // Sort by match % desc
+        }
+      }
+      
+      // Limit to requested amount
+      const finalRecipes = allRecipes.slice(0, requestLimit);
+      
+      res.json(finalRecipes);
     } catch (error) {
       console.error("Error getting recipes:", error);
       res.status(500).json({ message: "Internal server error" });
