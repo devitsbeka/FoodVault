@@ -2,6 +2,7 @@ import memoizee from "memoizee";
 
 const SPOONACULAR_API_KEY = process.env.SPOONACULAR_API_KEY;
 const SPOONACULAR_BASE_URL = "https://api.spoonacular.com/recipes";
+const SPOONACULAR_FOOD_URL = "https://api.spoonacular.com/food/ingredients";
 
 export interface SpoonacularRecipe {
   id: number;
@@ -247,3 +248,42 @@ export async function getSpoonacularRecipeById(id: string): Promise<NormalizedRe
     return null;
   }
 }
+
+interface IngredientAutocomplete {
+  id: number;
+  name: string;
+  image: string;
+}
+
+// Get ingredient image from Spoonacular autocomplete
+export async function getIngredientImage(ingredientName: string): Promise<string | null> {
+  if (!SPOONACULAR_API_KEY || !ingredientName) {
+    return null;
+  }
+
+  try {
+    const url = `${SPOONACULAR_FOOD_URL}/autocomplete?apiKey=${SPOONACULAR_API_KEY}&query=${encodeURIComponent(ingredientName)}&number=1&metaInformation=true`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const results: IngredientAutocomplete[] = await response.json();
+    
+    if (results.length > 0 && results[0].image) {
+      return `https://spoonacular.com/cdn/ingredients_100x100/${results[0].image}`;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error fetching ingredient image from Spoonacular:", error);
+    return null;
+  }
+}
+
+// Memoized version with 24 hour cache (ingredient images don't change often)
+export const getIngredientImageMemoized = memoizee(getIngredientImage, {
+  maxAge: 24 * 60 * 60 * 1000, // 24 hours
+  promise: true,
+});

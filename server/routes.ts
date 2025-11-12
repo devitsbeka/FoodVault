@@ -5,7 +5,7 @@ import { isAuthenticated, optionalAuth } from "./replitAuth";
 import { getChatCompletion } from "./openai";
 import { insertKitchenInventorySchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
-import { searchSpoonacularRecipes, getSpoonacularRecipeById } from "./spoonacularApi";
+import { searchSpoonacularRecipes, getSpoonacularRecipeById, getIngredientImageMemoized } from "./spoonacularApi";
 import { normalizeIngredientName } from "./normalizationService";
 
 // Shared error response helper
@@ -55,8 +55,16 @@ export function registerRoutes(app: Express) {
     try {
       const user = req.user as any;
       const validatedData = insertKitchenInventorySchema.parse(req.body);
+      
+      // Fetch ingredient image if not provided
+      let imageUrl = validatedData.imageUrl;
+      if (!imageUrl && validatedData.name) {
+        imageUrl = await getIngredientImageMemoized(validatedData.name);
+      }
+      
       const item = await storage.addKitchenItem({
         ...validatedData,
+        imageUrl: imageUrl || null,
         userId: user.claims.sub,
       });
       res.json(item);
