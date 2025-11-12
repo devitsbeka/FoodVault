@@ -62,6 +62,11 @@ export const storage = {
     return result[0] || null;
   },
 
+  async getUserByEmail(email: string): Promise<User | null> {
+    const result = await db.select().from(users).where(eq(users.email, email));
+    return result[0] || null;
+  },
+
   // Kitchen Inventory
   async getKitchenInventory(userId: string): Promise<KitchenInventory[]> {
     return await db.select().from(kitchenInventory).where(eq(kitchenInventory.userId, userId));

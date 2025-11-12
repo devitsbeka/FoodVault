@@ -562,6 +562,124 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.post("/api/family/members", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { email } = req.body;
+      
+      if (!email || typeof email !== "string" || !email.includes("@")) {
+        return sendError(res, 400, "Valid email address is required", "VALIDATION_ERROR");
+      }
+
+      // Get requester's family and verify they're admin
+      const family = await storage.getFamily(user.claims.sub);
+      if (!family) {
+        return sendError(res, 404, "You are not part of a family", "NOT_FOUND");
+      }
+
+      const requesterMembership = family.members.find(m => m.user.id === user.claims.sub);
+      if (!requesterMembership || requesterMembership.role !== "admin") {
+        return sendError(res, 403, "Only family admins can invite members", "FORBIDDEN");
+      }
+
+      // Look up user by email
+      const invitedUser = await storage.getUserByEmail(email.toLowerCase());
+      if (!invitedUser) {
+        return sendError(res, 404, "User with this email not found. They must sign up first.", "NOT_FOUND");
+      }
+
+      // Check if already a member
+      const existingMember = family.members.find(m => m.user.id === invitedUser.id);
+      if (existingMember) {
+        return res.status(409).json({ 
+          message: "User is already a family member",
+          member: existingMember
+        });
+      }
+
+      // Add member to family
+      const newMember = await storage.addFamilyMember({
+        familyId: family.id,
+        userId: invitedUser.id,
+        role: "member",
+      });
+
+      // Return member with user info for UI
+      res.json({
+        ...newMember,
+        user: invitedUser,
+      });
+    } catch (error) {
+      console.error("Error adding family member:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // Development-only endpoint to seed test family members
+  if (process.env.NODE_ENV === "development") {
+    app.post("/api/dev/seed-family", isAuthenticated, async (req, res) => {
+      try {
+        const user = req.user as any;
+        
+        // Get or create family
+        let family = await storage.getFamily(user.claims.sub);
+        if (!family) {
+          return sendError(res, 404, "You must create a family first", "NOT_FOUND");
+        }
+
+        // Test users to create
+        const testUsers = [
+          { email: "alice.cooper@test.com", firstName: "Alice", lastName: "Cooper" },
+          { email: "bob.smith@test.com", firstName: "Bob", lastName: "Smith" },
+          { email: "charlie.davis@test.com", firstName: "Charlie", lastName: "Davis" },
+        ];
+
+        const addedMembers = [];
+
+        for (const testUser of testUsers) {
+          // Check if user already exists
+          let existingUser = await storage.getUserByEmail(testUser.email);
+          
+          if (!existingUser) {
+            // Create test user
+            await storage.upsertUser({
+              id: `test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              email: testUser.email,
+              firstName: testUser.firstName,
+              lastName: testUser.lastName,
+              profileImageUrl: null,
+            });
+            existingUser = await storage.getUserByEmail(testUser.email);
+          }
+
+          if (existingUser) {
+            // Check if already a family member
+            const alreadyMember = family.members.find(m => m.user.id === existingUser.id);
+            if (!alreadyMember) {
+              const newMember = await storage.addFamilyMember({
+                familyId: family.id,
+                userId: existingUser.id,
+                role: "member",
+              });
+              addedMembers.push({
+                ...newMember,
+                user: existingUser,
+              });
+            }
+          }
+        }
+
+        res.json({
+          message: `Added ${addedMembers.length} test family members`,
+          members: addedMembers,
+        });
+      } catch (error) {
+        console.error("Error seeding family members:", error);
+        sendError(res, 500, "Internal server error");
+      }
+    });
+  }
+
   // Shopping List routes
   app.get("/api/shopping-lists", isAuthenticated, async (req, res) => {
     try {

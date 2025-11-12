@@ -21,7 +21,9 @@ type FamilyWithMembers = Family & {
 export default function FamilyPage() {
   const { toast } = useToast();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [familyName, setFamilyName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
 
   const { data: family, isLoading } = useQuery<FamilyWithMembers | null>({
     queryKey: ["/api/family"],
@@ -70,6 +72,53 @@ export default function FamilyPage() {
       return;
     }
     createFamilyMutation.mutate(familyName);
+  };
+
+  const inviteMemberMutation = useMutation({
+    mutationFn: async (email: string) => {
+      return await apiRequest("POST", "/api/family/members", { email });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/family"] });
+      setIsInviteDialogOpen(false);
+      setInviteEmail("");
+      toast({
+        title: "Member added",
+        description: "The user has been added to your family.",
+      });
+    },
+    onError: (error: any) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      
+      const errorMessage = error.message || "Failed to add member. Please try again.";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleInviteMember = () => {
+    if (!inviteEmail.trim() || !inviteEmail.includes("@")) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+    inviteMemberMutation.mutate(inviteEmail.trim().toLowerCase());
   };
 
   if (isLoading) {
@@ -142,10 +191,48 @@ export default function FamilyPage() {
             {family.members.length} member{family.members.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Button variant="outline" className="gap-2" data-testid="button-invite-member">
-          <UserPlus className="w-4 h-4" />
-          Invite Member
-        </Button>
+        <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="gap-2" data-testid="button-invite-member">
+              <UserPlus className="w-4 h-4" />
+              Invite Member
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Family Member</DialogTitle>
+              <DialogDescription>
+                Add an existing user to your family by entering their email address.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="invite-email">Email Address</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  placeholder="member@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleInviteMember();
+                    }
+                  }}
+                  data-testid="input-invite-email"
+                />
+              </div>
+              <Button
+                onClick={handleInviteMember}
+                className="w-full"
+                disabled={inviteMemberMutation.isPending}
+                data-testid="button-submit-invite"
+              >
+                {inviteMemberMutation.isPending ? "Adding..." : "Add Member"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>
