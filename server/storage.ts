@@ -1,7 +1,8 @@
 import { db } from "./db";
-import { eq, and, gte, desc, sql, inArray } from "drizzle-orm";
-import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList } from "@shared/schema";
-import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists } from "@shared/schema";
+import { eq, and, gte, desc, sql, inArray, isNull } from "drizzle-orm";
+import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification } from "@shared/schema";
+import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications } from "@shared/schema";
+import { normalizeIngredientName } from "./normalizationService";
 
 export const storage = {
   async upsertUser(user: UpsertUser): Promise<void> {
@@ -38,7 +39,11 @@ export const storage = {
   },
 
   async addKitchenItem(item: InsertKitchenInventory): Promise<KitchenInventory> {
-    const result = await db.insert(kitchenInventory).values(item).returning();
+    const normalizedName = normalizeIngredientName(item.name);
+    const result = await db.insert(kitchenInventory).values({
+      ...item,
+      normalizedName,
+    }).returning();
     return result[0];
   },
 
@@ -416,10 +421,13 @@ export const storage = {
     return result[0];
   },
 
-  async updateShoppingList(id: string, userId: string, items: any): Promise<ShoppingList> {
+  async updateShoppingList(id: string, userId: string, name?: string): Promise<ShoppingList> {
     const result = await db
       .update(shoppingLists)
-      .set({ items, updatedAt: new Date() })
+      .set({ 
+        ...(name && { name }),
+        updatedAt: new Date() 
+      })
       .where(
         and(
           eq(shoppingLists.id, id),
@@ -437,5 +445,362 @@ export const storage = {
         eq(shoppingLists.userId, userId)
       )
     );
+  },
+
+  // Shopping List Items
+  async addShoppingListItem(item: InsertShoppingListItem, userId: string): Promise<ShoppingListItem | null> {
+    // Verify the shopping list belongs to the user
+    const listCheck = await db
+      .select()
+      .from(shoppingLists)
+      .where(
+        and(
+          eq(shoppingLists.id, item.listId),
+          eq(shoppingLists.userId, userId)
+        )
+      );
+    
+    if (!listCheck.length) return null;
+
+    const normalizedName = normalizeIngredientName(item.name);
+    const result = await db.insert(shoppingListItems).values({
+      ...item,
+      normalizedName,
+    }).returning();
+    return result[0];
+  },
+
+  async getShoppingListItems(listId: string): Promise<ShoppingListItem[]> {
+    return await db
+      .select()
+      .from(shoppingListItems)
+      .where(eq(shoppingListItems.listId, listId))
+      .orderBy(desc(shoppingListItems.addedAt));
+  },
+
+  async getShoppingListWithItems(listId: string, userId: string): Promise<{ list: ShoppingList; items: ShoppingListItem[] } | null> {
+    const listResult = await db
+      .select()
+      .from(shoppingLists)
+      .where(
+        and(
+          eq(shoppingLists.id, listId),
+          eq(shoppingLists.userId, userId)
+        )
+      );
+    
+    if (!listResult.length) return null;
+    
+    const items = await this.getShoppingListItems(listId);
+    
+    return {
+      list: listResult[0],
+      items,
+    };
+  },
+
+  async updateShoppingListItemStatus(itemId: string, userId: string, status: 'active' | 'bought' | 'pending_review'): Promise<ShoppingListItem | null> {
+    // Verify ownership through shopping list
+    const item = await db
+      .select({ item: shoppingListItems, list: shoppingLists })
+      .from(shoppingListItems)
+      .innerJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
+      .where(
+        and(
+          eq(shoppingListItems.id, itemId),
+          eq(shoppingLists.userId, userId)
+        )
+      );
+    
+    if (!item.length) return null;
+
+    const result = await db
+      .update(shoppingListItems)
+      .set({ 
+        status,
+        boughtAt: status === 'bought' ? new Date() : null,
+      })
+      .where(eq(shoppingListItems.id, itemId))
+      .returning();
+    return result[0];
+  },
+
+  async assignShoppingListItem(itemId: string, userId: string, assignedToUserId: string | null): Promise<ShoppingListItem | null> {
+    // Verify ownership through shopping list
+    const item = await db
+      .select({ item: shoppingListItems, list: shoppingLists })
+      .from(shoppingListItems)
+      .innerJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
+      .where(
+        and(
+          eq(shoppingListItems.id, itemId),
+          eq(shoppingLists.userId, userId)
+        )
+      );
+    
+    if (!item.length) return null;
+
+    const result = await db
+      .update(shoppingListItems)
+      .set({ assignedToUserId })
+      .where(eq(shoppingListItems.id, itemId))
+      .returning();
+    return result[0];
+  },
+
+  async deleteShoppingListItem(itemId: string, userId: string): Promise<boolean> {
+    // Verify ownership through shopping list
+    const item = await db
+      .select({ item: shoppingListItems, list: shoppingLists })
+      .from(shoppingListItems)
+      .innerJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
+      .where(
+        and(
+          eq(shoppingListItems.id, itemId),
+          eq(shoppingLists.userId, userId)
+        )
+      );
+    
+    if (!item.length) return false;
+
+    await db.delete(shoppingListItems).where(eq(shoppingListItems.id, itemId));
+    return true;
+  },
+
+  // Inventory Review Queue
+  async addToReviewQueue(item: InsertInventoryReviewQueue): Promise<InventoryReviewQueue> {
+    const normalizedName = normalizeIngredientName(item.name);
+    const result = await db.insert(inventoryReviewQueue).values({
+      ...item,
+      normalizedName,
+    }).returning();
+    return result[0];
+  },
+
+  async getPendingReviewItems(userId: string): Promise<InventoryReviewQueue[]> {
+    return await db
+      .select()
+      .from(inventoryReviewQueue)
+      .where(
+        and(
+          eq(inventoryReviewQueue.userId, userId),
+          eq(inventoryReviewQueue.status, 'pending')
+        )
+      )
+      .orderBy(desc(inventoryReviewQueue.createdAt));
+  },
+
+  async approveReviewItem(itemId: string, reviewerUserId: string): Promise<{ reviewItem: InventoryReviewQueue; inventoryItem: KitchenInventory } | null> {
+    return await db.transaction(async (tx) => {
+      // Get the review item and verify authorization through shopping list ownership
+      const reviewData = await tx
+        .select({
+          review: inventoryReviewQueue,
+          sourceItem: shoppingListItems,
+          list: shoppingLists,
+        })
+        .from(inventoryReviewQueue)
+        .leftJoin(shoppingListItems, eq(inventoryReviewQueue.sourceItemId, shoppingListItems.id))
+        .leftJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
+        .where(
+          and(
+            eq(inventoryReviewQueue.id, itemId),
+            eq(inventoryReviewQueue.status, 'pending')
+          )
+        );
+      
+      if (!reviewData.length) return null;
+
+      const { review, list } = reviewData[0];
+
+      // Verify user is authorized (either list owner or family member)
+      if (list) {
+        const isOwner = list.userId === reviewerUserId;
+        
+        // Check if user is family member if this is a family list
+        let isFamilyMember = false;
+        if (list.familyId && !isOwner) {
+          const memberCheck = await tx
+            .select()
+            .from(familyMembers)
+            .where(
+              and(
+                eq(familyMembers.familyId, list.familyId),
+                eq(familyMembers.userId, reviewerUserId)
+              )
+            );
+          isFamilyMember = memberCheck.length > 0;
+        }
+
+        if (!isOwner && !isFamilyMember) return null;
+      } else {
+        // No linked shopping list, verify it's the original submitter
+        if (review.userId !== reviewerUserId) return null;
+      }
+
+      // Mark review item as approved
+      const reviewResult = await tx
+        .update(inventoryReviewQueue)
+        .set({
+          status: 'approved',
+          reviewerId: reviewerUserId,
+          reviewedAt: new Date(),
+        })
+        .where(eq(inventoryReviewQueue.id, itemId))
+        .returning();
+      
+      const reviewItem = reviewResult[0];
+
+      // Create kitchen inventory item
+      const inventoryResult = await tx
+        .insert(kitchenInventory)
+        .values({
+          userId: reviewItem.userId,
+          name: reviewItem.name,
+          normalizedName: reviewItem.normalizedName,
+          quantity: reviewItem.quantity || '1',
+          unit: reviewItem.unit,
+          category: reviewItem.categoryGuess || 'fridge',
+          sourceItemId: reviewItem.sourceItemId,
+        })
+        .returning();
+
+      const inventoryItem = inventoryResult[0];
+
+      // Mark source shopping item as bought if it exists
+      if (reviewItem.sourceItemId) {
+        await tx
+          .update(shoppingListItems)
+          .set({ 
+            status: 'bought',
+            boughtAt: new Date(),
+          })
+          .where(eq(shoppingListItems.id, reviewItem.sourceItemId));
+      }
+
+      return { reviewItem, inventoryItem };
+    });
+  },
+
+  async rejectReviewItem(itemId: string, reviewerUserId: string): Promise<InventoryReviewQueue | null> {
+    return await db.transaction(async (tx) => {
+      // Get the review item and verify authorization through shopping list ownership
+      const reviewData = await tx
+        .select({
+          review: inventoryReviewQueue,
+          sourceItem: shoppingListItems,
+          list: shoppingLists,
+        })
+        .from(inventoryReviewQueue)
+        .leftJoin(shoppingListItems, eq(inventoryReviewQueue.sourceItemId, shoppingListItems.id))
+        .leftJoin(shoppingLists, eq(shoppingListItems.listId, shoppingLists.id))
+        .where(
+          and(
+            eq(inventoryReviewQueue.id, itemId),
+            eq(inventoryReviewQueue.status, 'pending')
+          )
+        );
+      
+      if (!reviewData.length) return null;
+
+      const { review, list } = reviewData[0];
+
+      // Verify user is authorized (either list owner or family member)
+      if (list) {
+        const isOwner = list.userId === reviewerUserId;
+        
+        // Check if user is family member if this is a family list
+        let isFamilyMember = false;
+        if (list.familyId && !isOwner) {
+          const memberCheck = await tx
+            .select()
+            .from(familyMembers)
+            .where(
+              and(
+                eq(familyMembers.familyId, list.familyId),
+                eq(familyMembers.userId, reviewerUserId)
+              )
+            );
+          isFamilyMember = memberCheck.length > 0;
+        }
+
+        if (!isOwner && !isFamilyMember) return null;
+      } else {
+        // No linked shopping list, verify it's the original submitter
+        if (review.userId !== reviewerUserId) return null;
+      }
+
+      // Mark review item as rejected
+      const reviewResult = await tx
+        .update(inventoryReviewQueue)
+        .set({
+          status: 'rejected',
+          reviewerId: reviewerUserId,
+          reviewedAt: new Date(),
+        })
+        .where(eq(inventoryReviewQueue.id, itemId))
+        .returning();
+      
+      const reviewItem = reviewResult[0];
+
+      // Reactivate source shopping item if it exists
+      if (reviewItem.sourceItemId) {
+        await tx
+          .update(shoppingListItems)
+          .set({ status: 'active' })
+          .where(eq(shoppingListItems.id, reviewItem.sourceItemId));
+      }
+
+      return reviewItem;
+    });
+  },
+
+  // Notifications
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const result = await db.insert(notifications).values(notification).returning();
+    return result[0];
+  },
+
+  async getUnreadNotifications(userId: string): Promise<Notification[]> {
+    return await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.recipientUserId, userId),
+          isNull(notifications.readAt)
+        )
+      )
+      .orderBy(desc(notifications.createdAt));
+  },
+
+  async getRecentNotifications(userId: string, limit: number = 20): Promise<Notification[]> {
+    return await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.recipientUserId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(limit);
+  },
+
+  async markNotificationAsRead(notificationId: string): Promise<Notification> {
+    const result = await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(eq(notifications.id, notificationId))
+      .returning();
+    return result[0];
+  },
+
+  async markAllNotificationsAsRead(userId: string): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(notifications.recipientUserId, userId),
+          isNull(notifications.readAt)
+        )
+      );
   },
 };
