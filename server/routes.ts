@@ -654,6 +654,87 @@ export function registerRoutes(app: Express) {
   });
 
   // Shopping List Items routes
+  // Shopping List Item routes
+  app.patch("/api/shopping-lists/:listId/items/:itemId/status", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { itemId } = req.params;
+      
+      // Validate status
+      const schema = insertShoppingListItemSchema.pick({ status: true });
+      const validatedData = schema.parse(req.body);
+      
+      if (!validatedData.status) {
+        return sendError(res, 400, "Status is required", "VALIDATION_ERROR");
+      }
+      
+      const result = await storage.updateShoppingListItemStatus(
+        itemId,
+        user.claims.sub,
+        validatedData.status
+      );
+      
+      if (!result) {
+        return sendError(res, 404, "Shopping list item not found or access denied", "NOT_FOUND");
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error updating shopping list item status:", error);
+      if (error.name === "ZodError") {
+        return sendError(res, 400, "Invalid request data", "VALIDATION_ERROR", error.errors);
+      }
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.patch("/api/shopping-lists/:listId/items/:itemId/assign", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { itemId } = req.params;
+      
+      // Validate assignedToUserId
+      const schema = insertShoppingListItemSchema.pick({ assignedToUserId: true });
+      const validatedData = schema.parse(req.body);
+      
+      const result = await storage.assignShoppingListItem(
+        itemId,
+        user.claims.sub,
+        validatedData.assignedToUserId || null
+      );
+      
+      if (!result) {
+        return sendError(res, 404, "Shopping list item not found or access denied", "NOT_FOUND");
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error assigning shopping list item:", error);
+      if (error.name === "ZodError") {
+        return sendError(res, 400, "Invalid request data", "VALIDATION_ERROR", error.errors);
+      }
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.delete("/api/shopping-lists/:listId/items/:itemId", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { itemId } = req.params;
+      
+      const result = await storage.deleteShoppingListItem(itemId, user.claims.sub);
+      
+      if (!result) {
+        return sendError(res, 404, "Shopping list item not found or access denied", "NOT_FOUND");
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting shopping list item:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
   app.post("/api/shopping-lists/:listId/items", isAuthenticated, async (req, res) => {
     try {
       const user = req.user as any;
