@@ -3,7 +3,7 @@ import type { Express, Response } from "express";
 import { storage } from "./storage";
 import { isAuthenticated, optionalAuth } from "./replitAuth";
 import { getChatCompletion } from "./openai";
-import { insertKitchenInventorySchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
+import { insertKitchenInventorySchema, insertKitchenEquipmentSchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
 import { searchSpoonacularRecipes, getSpoonacularRecipeById, getIngredientImageMemoized, getIngredientSuggestionsMemoized } from "./spoonacularApi";
 import { normalizeIngredientName } from "./normalizationService";
@@ -85,6 +85,50 @@ export function registerRoutes(app: Express) {
     } catch (error) {
       console.error("Error deleting inventory item:", error);
       res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Kitchen Equipment routes
+  app.get("/api/kitchen-equipment", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const location = req.query.location as 'indoor' | 'outdoor' | undefined;
+      const equipment = await storage.getKitchenEquipment(user.claims.sub, location);
+      res.json(equipment);
+    } catch (error) {
+      console.error("Error getting kitchen equipment:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.post("/api/kitchen-equipment", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const validatedData = insertKitchenEquipmentSchema.parse(req.body);
+      
+      const equipment = await storage.upsertKitchenEquipment({
+        ...validatedData,
+        userId: user.claims.sub,
+      });
+      res.json(equipment);
+    } catch (error: any) {
+      console.error("Error upserting kitchen equipment:", error);
+      if (error.name === "ZodError") {
+        sendError(res, 400, "Validation error", "VALIDATION_ERROR", error.errors);
+        return;
+      }
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  app.delete("/api/kitchen-equipment/:id", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      await storage.deleteKitchenEquipment(req.params.id, user.claims.sub);
+      res.json({ message: "Equipment deleted" });
+    } catch (error) {
+      console.error("Error deleting kitchen equipment:", error);
+      sendError(res, 500, "Internal server error");
     }
   });
 

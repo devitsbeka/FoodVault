@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { eq, and, gte, desc, sql, inArray, isNull, or } from "drizzle-orm";
-import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification, InsertMealPlanSeat, MealPlanSeat, InsertMealSeatAssignment, MealSeatAssignment, InsertRecipeInteraction, RecipeInteraction } from "@shared/schema";
-import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications, mealPlanSeats, mealSeatAssignments, recipeInteractions } from "@shared/schema";
+import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification, InsertMealPlanSeat, MealPlanSeat, InsertMealSeatAssignment, MealSeatAssignment, InsertRecipeInteraction, RecipeInteraction, InsertKitchenEquipment, KitchenEquipment } from "@shared/schema";
+import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications, mealPlanSeats, mealSeatAssignments, recipeInteractions, kitchenEquipment } from "@shared/schema";
 import { normalizeIngredientName } from "./normalizationService";
 
 // Helper function to check if user has access to a shopping list (owner or family member)
@@ -86,6 +86,48 @@ export const storage = {
       and(
         eq(kitchenInventory.id, id),
         eq(kitchenInventory.userId, userId)
+      )
+    );
+  },
+
+  // Kitchen Equipment
+  async getKitchenEquipment(userId: string, location?: 'indoor' | 'outdoor'): Promise<KitchenEquipment[]> {
+    if (location) {
+      return await db
+        .select()
+        .from(kitchenEquipment)
+        .where(and(
+          eq(kitchenEquipment.userId, userId),
+          eq(kitchenEquipment.location, location)
+        ));
+    }
+    return await db.select().from(kitchenEquipment).where(eq(kitchenEquipment.userId, userId));
+  },
+
+  async upsertKitchenEquipment(item: InsertKitchenEquipment): Promise<KitchenEquipment> {
+    const result = await db
+      .insert(kitchenEquipment)
+      .values(item)
+      .onConflictDoUpdate({
+        target: [kitchenEquipment.userId, kitchenEquipment.itemType, kitchenEquipment.location],
+        set: {
+          owned: item.owned,
+          brand: item.brand,
+          model: item.model,
+          imageUrl: item.imageUrl,
+          notes: item.notes,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return result[0];
+  },
+
+  async deleteKitchenEquipment(id: string, userId: string): Promise<void> {
+    await db.delete(kitchenEquipment).where(
+      and(
+        eq(kitchenEquipment.id, id),
+        eq(kitchenEquipment.userId, userId)
       )
     );
   },

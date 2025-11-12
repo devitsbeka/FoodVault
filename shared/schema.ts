@@ -211,8 +211,11 @@ export const kitchenEquipment = pgTable("kitchen_equipment", {
   imageUrl: varchar("image_url"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()),
+}, (table) => [
+  unique().on(table.userId, table.itemType, table.location),
+  index("kitchen_equipment_user_id_idx").on(table.userId),
+]);
 
 // ============= NOTIFICATIONS =============
 
@@ -271,6 +274,7 @@ export const mealSeatAssignments = pgTable("meal_seat_assignments", {
 export const usersRelations = relations(users, ({ many }) => ({
   familyMemberships: many(familyMembers),
   kitchenInventory: many(kitchenInventory),
+  kitchenEquipment: many(kitchenEquipment),
   mealPlans: many(mealPlans),
   mealVotes: many(mealVotes),
   recipeRatings: many(recipeRatings),
