@@ -110,6 +110,7 @@ export const kitchenInventory = pgTable("kitchen_inventory", {
   category: inventoryCategoryEnum("category").default('fridge'),
   quantity: decimal("quantity").default("1"),
   unit: varchar("unit"), // cup, lb, oz, etc.
+  imageUrl: varchar("image_url"), // Spoonacular ingredient image
   expirationDate: timestamp("expiration_date"),
   sourceItemId: varchar("source_item_id"), // link to shopping list item
   addedAt: timestamp("added_at").defaultNow(),
@@ -167,6 +168,7 @@ export const shoppingListItems = pgTable("shopping_list_items", {
   normalizedName: varchar("normalized_name"),
   quantity: varchar("quantity").default("1"),
   unit: varchar("unit"),
+  imageUrl: varchar("image_url"), // Spoonacular ingredient image
   status: itemStatusEnum("status").default('active'),
   assignedToUserId: varchar("assigned_to_user_id").references(() => users.id),
   addedByUserId: varchar("added_by_user_id").references(() => users.id),
@@ -186,6 +188,7 @@ export const inventoryReviewQueue = pgTable("inventory_review_queue", {
   normalizedName: varchar("normalized_name"),
   quantity: varchar("quantity"),
   unit: varchar("unit"),
+  imageUrl: varchar("image_url"), // Spoonacular ingredient image
   categoryGuess: inventoryCategoryEnum("category_guess").default('fridge'),
   status: reviewStatusEnum("status").default('pending'),
   reviewerId: varchar("reviewer_id").references(() => users.id),
@@ -364,6 +367,14 @@ export const insertRecipeSchema = createInsertSchema(recipes).omit({
 });
 export type InsertRecipe = z.infer<typeof insertRecipeSchema>;
 export type Recipe = typeof recipes.$inferSelect;
+
+// Ingredient structure for recipe ingredients JSONB field
+export type RecipeIngredient = {
+  name: string;
+  amount: string;
+  unit: string;
+  imageUrl?: string;
+};
 
 export const insertRecipeRatingSchema = createInsertSchema(recipeRatings).omit({
   id: true,

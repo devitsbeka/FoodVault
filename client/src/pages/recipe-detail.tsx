@@ -16,7 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useAuth } from "@/hooks/useAuth";
-import type { Recipe, KitchenInventory, ShoppingList } from "@shared/schema";
+import { IngredientImage } from "@/components/IngredientImage";
+import type { Recipe, KitchenInventory, ShoppingList, RecipeIngredient } from "@shared/schema";
 
 type RecipeRating = {
   id: string;
@@ -37,8 +38,8 @@ type RecipeWithRatings = Recipe & {
   ratings: RecipeRating[];
   averageRating: number | null;
   userRating: RecipeRating | null;
-  ownedIngredients?: { name: string; amount: string; unit: string }[];
-  missingIngredients?: { name: string; amount: string; unit: string }[];
+  ownedIngredients?: RecipeIngredient[];
+  missingIngredients?: RecipeIngredient[];
 };
 
 export default function RecipeDetail() {
@@ -103,13 +104,14 @@ export default function RecipeDetail() {
   };
 
   const addToListMutation = useMutation({
-    mutationFn: async ({ listId, ingredients }: { listId: string; ingredients: { name: string; amount: string; unit: string }[] }) => {
+    mutationFn: async ({ listId, ingredients }: { listId: string; ingredients: RecipeIngredient[] }) => {
       // Add each ingredient as a shopping list item
       for (const ingredient of ingredients) {
         await apiRequest("POST", `/api/shopping-lists/${listId}/items`, {
-          ingredientName: ingredient.name,
-          quantity: parseFloat(ingredient.amount) || 1,
+          name: ingredient.name,
+          quantity: ingredient.amount,
           unit: ingredient.unit || "",
+          imageUrl: ingredient.imageUrl || null,
         });
       }
     },
@@ -383,8 +385,12 @@ export default function RecipeDetail() {
               const availability = user ? checkIngredientAvailability(ingredient.name) : null;
               return (
                 <li key={index} className="flex items-center justify-between gap-2" data-testid={`ingredient-${index}`}>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-muted-foreground">•</span>
+                  <div className="flex items-center gap-2">
+                    <IngredientImage 
+                      imageUrl={(ingredient as RecipeIngredient).imageUrl} 
+                      name={ingredient.name} 
+                      size={30}
+                    />
                     <span>
                       {ingredient.amount} {ingredient.unit} {ingredient.name}
                     </span>

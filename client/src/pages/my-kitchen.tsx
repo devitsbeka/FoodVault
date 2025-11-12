@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,20 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Calendar, X, ImageOff, Package, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Calendar, X, Package, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { IngredientImage } from "@/components/IngredientImage";
 import type { KitchenInventory, InsertKitchenInventory, InventoryReviewQueue } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
 type Category = "fridge" | "pantry" | "other" | "pending";
-
-interface UnsplashImage {
-  urls: {
-    small: string;
-    thumb: string;
-  };
-}
 
 export default function MyKitchen() {
   const { toast } = useToast();
@@ -33,7 +27,6 @@ export default function MyKitchen() {
     unit: "",
     expirationDate: "",
   });
-  const [ingredientImages, setIngredientImages] = useState<Record<string, string>>({});
 
   const { data: inventory, isLoading } = useQuery<KitchenInventory[]>({
     queryKey: ["/api/kitchen-inventory"],
@@ -43,55 +36,12 @@ export default function MyKitchen() {
     queryKey: ["/api/inventory-review-queue"],
   });
 
-  // Fetch ingredient image from Unsplash
-  const fetchIngredientImage = async (ingredientName: string): Promise<string> => {
-    if (ingredientImages[ingredientName]) {
-      return ingredientImages[ingredientName];
-    }
-
-    try {
-      const accessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
-      if (!accessKey) {
-        return '';
-      }
-
-      const response = await fetch(
-        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(ingredientName + ' food ingredient')}&per_page=1&orientation=landscape`,
-        {
-          headers: {
-            Authorization: `Client-ID ${accessKey}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        return '';
-      }
-
-      const data = await response.json();
-      if (data.results && data.results.length > 0) {
-        const imageUrl = data.results[0].urls.small;
-        setIngredientImages(prev => ({ ...prev, [ingredientName]: imageUrl }));
-        return imageUrl;
-      }
-    } catch (error) {
-      console.error('Error fetching ingredient image:', error);
-    }
-    return '';
-  };
-
   const addMutation = useMutation({
     mutationFn: async (item: InsertKitchenInventory) => {
       await apiRequest("POST", "/api/kitchen-inventory", item);
     },
-    onSuccess: async () => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/kitchen-inventory"] });
-      
-      // Fetch image for the newly added item
-      if (newItem.name) {
-        await fetchIngredientImage(newItem.name);
-      }
-      
       setNewItem({ name: "", quantity: "1", unit: "", expirationDate: "" });
       setIsAddingItem(false);
       toast({
@@ -244,18 +194,6 @@ export default function MyKitchen() {
   };
 
   const filteredInventory = inventory?.filter(item => item.category === selectedCategory) || [];
-
-  // Load images for existing inventory items
-  useEffect(() => {
-    if (inventory) {
-      inventory.forEach(item => {
-        if (!ingredientImages[item.name]) {
-          fetchIngredientImage(item.name);
-        }
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventory]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -516,7 +454,6 @@ export default function MyKitchen() {
                           ? Math.ceil((new Date(item.expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
                           : null;
                         const isExpiring = daysUntilExpiry !== null && daysUntilExpiry >= 0 && daysUntilExpiry <= 3;
-                        const imageUrl = ingredientImages[item.name] || '';
 
                         return (
                           <Card 
@@ -524,38 +461,30 @@ export default function MyKitchen() {
                             className={`hover-elevate group ${isExpiring ? 'border-destructive/50 ring-2 ring-destructive/20' : ''}`} 
                             data-testid={`item-card-${item.id}`}
                           >
-                            {/* Ingredient Photo */}
-                            <div className="relative h-32 bg-muted overflow-hidden">
-                              {imageUrl ? (
-                                <img 
-                                  src={imageUrl} 
-                                  alt={item.name}
-                                  className="w-full h-full object-cover"
-                                  loading="lazy"
+                            <CardContent className="p-4 space-y-3">
+                              <div className="flex items-start gap-3">
+                                <IngredientImage 
+                                  imageUrl={item.imageUrl} 
+                                  name={item.name} 
+                                  size={48}
+                                  className="flex-shrink-0"
                                 />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10">
-                                  <ImageOff className="w-12 h-12 opacity-20" />
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-semibold text-sm mb-1 line-clamp-2">{item.name}</h3>
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.quantity} {item.unit || "unit(s)"}
+                                  </p>
                                 </div>
-                              )}
-                              
-                              {/* Delete Button Overlay */}
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                className="absolute top-2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                                onClick={() => deleteMutation.mutate(item.id)}
-                                data-testid={`button-delete-${item.id}`}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                            
-                            <CardContent className="p-3">
-                              <h3 className="font-semibold text-sm mb-1 line-clamp-1">{item.name}</h3>
-                              <p className="text-xs text-muted-foreground mb-1">
-                                {item.quantity} {item.unit || "unit(s)"}
-                              </p>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => deleteMutation.mutate(item.id)}
+                                  data-testid={`button-delete-${item.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                               {item.expirationDate && (
                                 <div className={`flex items-center gap-1 text-xs ${isExpiring ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
                                   <Calendar className="w-3 h-3" />

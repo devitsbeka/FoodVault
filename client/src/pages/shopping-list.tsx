@@ -14,6 +14,7 @@ import { ShoppingCart, Plus, Trash2, Users as UsersIcon, Package, CheckCircle2 }
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { IngredientImage } from "@/components/IngredientImage";
 import type { ShoppingList, ShoppingListItem, User } from "@shared/schema";
 
 type ShoppingListWithItems = ShoppingList & {
@@ -536,6 +537,11 @@ export default function ShoppingListPage() {
                                 })
                               }
                               data-testid={`checkbox-${item.id}`}
+                            />
+                            <IngredientImage 
+                              imageUrl={item.imageUrl} 
+                              name={item.name} 
+                              size={30}
                             />
                             <div className="flex-1 min-w-0">
                               <p className={`${item.status === 'bought' ? "line-through text-muted-foreground" : ""}`}>
