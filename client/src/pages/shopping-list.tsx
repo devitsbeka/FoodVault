@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ShoppingCart, Plus, Trash2, Users as UsersIcon, Package, CheckCircle2 } from "lucide-react";
+import { ShoppingCart, Plus, Trash2, Users as UsersIcon, Package, CheckCircle2, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -485,7 +486,17 @@ export default function ShoppingListPage() {
               <>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
                   <div className="flex-1">
-                    <CardTitle>{selectedList.name}</CardTitle>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle>{selectedList.name}</CardTitle>
+                      {selectedList.family ? (
+                        <Badge variant="secondary" className="gap-1">
+                          <UsersIcon className="w-3 h-3" />
+                          {selectedList.family.name || "Family List"}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">Personal</Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground mt-1">
                       {checkedCount} of {totalCount} items checked
                     </p>
