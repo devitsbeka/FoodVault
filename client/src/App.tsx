@@ -97,9 +97,14 @@ function AppSidebar() {
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
+  // Don't render anything while loading
+  if (isLoading) {
+    return null;
+  }
+
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
+      {!isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
         <>

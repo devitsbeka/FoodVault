@@ -67,6 +67,7 @@ export function registerRoutes(app: Express) {
   app.get("/api/recipes", async (req, res) => {
     try {
       const { search, dietType, maxCalories, limit, offset } = req.query;
+      const requestLimit = limit ? parseInt(limit as string) : 15; // Default to 15 recipes
       
       // Fetch recipes from external API
       let apiRecipes: any[] = [];
@@ -75,7 +76,7 @@ export function registerRoutes(app: Express) {
           searchQuery: search as string,
           dietType: dietType as string,
           maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
-          limit: limit ? parseInt(limit as string) : 20,
+          limit: requestLimit,
           offset: offset ? parseInt(offset as string) : 0,
         });
       } catch (apiError) {
@@ -90,8 +91,8 @@ export function registerRoutes(app: Express) {
         maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
       });
       
-      // Merge API and database recipes, prioritizing API recipes
-      const allRecipes = [...apiRecipes, ...dbRecipes];
+      // Merge API and database recipes, limit to requested amount
+      const allRecipes = [...apiRecipes, ...dbRecipes].slice(0, requestLimit);
       
       res.json(allRecipes);
     } catch (error) {
@@ -106,17 +107,57 @@ export function registerRoutes(app: Express) {
       if (req.params.id.startsWith('api-')) {
         const recipe = await getApiRecipeById(req.params.id);
         if (recipe) {
+          // Get user's kitchen inventory to map ingredients if authenticated
+          const userId = (req.user as any)?.claims?.sub;
+          if (userId) {
+            const inventory = await storage.getKitchenInventory(userId);
+            const inventoryNames = new Set(inventory.map(item => item.name.toLowerCase()));
+            
+            const ownedIngredients = recipe.ingredients.filter((ing: any) => 
+              inventoryNames.has(ing.name.toLowerCase())
+            );
+            const missingIngredients = recipe.ingredients.filter((ing: any) => 
+              !inventoryNames.has(ing.name.toLowerCase())
+            );
+            
+            return res.json({
+              ...recipe,
+              ownedIngredients,
+              missingIngredients,
+            });
+          }
           return res.json(recipe);
         }
       }
       
-      // Fallback to database recipes (for user-created recipes)
+      // Fallback to database recipes (for user-created recipes) - requires auth
       const userId = (req.user as any)?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
       const recipe = await storage.getRecipeById(req.params.id, userId);
       if (!recipe) {
         return res.status(404).json({ message: "Recipe not found" });
       }
-      res.json(recipe);
+      
+      // Add ingredient matching for database recipes too
+      const inventory = await storage.getKitchenInventory(userId);
+      const inventoryNames = new Set(inventory.map(item => item.name.toLowerCase()));
+      
+      const ingredients = (recipe.ingredients as any) || [];
+      const ownedIngredients = ingredients.filter((ing: any) => 
+        inventoryNames.has(ing.name.toLowerCase())
+      );
+      const missingIngredients = ingredients.filter((ing: any) => 
+        !inventoryNames.has(ing.name.toLowerCase())
+      );
+      
+      res.json({
+        ...recipe,
+        ownedIngredients,
+        missingIngredients,
+      });
     } catch (error) {
       console.error("Error getting recipe:", error);
       res.status(500).json({ message: "Internal server error" });
