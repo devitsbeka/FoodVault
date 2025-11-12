@@ -374,7 +374,7 @@ export default function MyKitchen() {
                                 <IngredientImage 
                                   imageUrl={item.imageUrl} 
                                   name={item.name} 
-                                  size={40}
+                                  size={30}
                                 />
                                 <div className="flex-1">
                                   <h3 className="font-medium">{item.name}</h3>
@@ -473,7 +473,7 @@ export default function MyKitchen() {
                                 <IngredientImage 
                                   imageUrl={item.imageUrl} 
                                   name={item.name} 
-                                  size={48}
+                                  size={30}
                                   className="flex-shrink-0"
                                 />
                                 <div className="flex-1 min-w-0">
