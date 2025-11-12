@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChefHat, Refrigerator, Calendar, ShoppingCart, TrendingUp, Clock } from "lucide-react";
 import { OnboardingCarousel } from "@/components/onboarding-carousel";
 import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
 import type { Recipe, KitchenInventory, MealPlan } from "@shared/schema";
 
 export default function Home() {
@@ -200,21 +201,23 @@ export default function Home() {
               </p>
             ) : (
               recommendedRecipes.slice(0, 3).map((recipe) => (
-                <div key={recipe.id} className="flex gap-3 p-3 rounded-lg hover-elevate cursor-pointer" data-testid={`recommended-recipe-${recipe.id}`}>
-                  <div className="w-20 h-20 bg-muted rounded-lg flex items-center justify-center">
-                    {recipe.imageUrl ? (
-                      <img src={recipe.imageUrl} alt={recipe.name} className="w-full h-full object-cover rounded-lg" />
-                    ) : (
-                      <ChefHat className="w-8 h-8 text-muted-foreground" />
-                    )}
+                <Link key={recipe.id} href={`/recipes/${recipe.id}`}>
+                  <div className="flex gap-3 p-3 rounded-lg hover-elevate cursor-pointer" data-testid={`recommended-recipe-${recipe.id}`}>
+                    <div className="w-20 h-20 bg-muted rounded-lg flex items-center justify-center">
+                      {recipe.imageUrl ? (
+                        <img src={recipe.imageUrl} alt={recipe.name} className="w-full h-full object-cover rounded-lg" />
+                      ) : (
+                        <ChefHat className="w-8 h-8 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium mb-1">{recipe.name}</h4>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {recipe.description || "Delicious recipe waiting for you"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium mb-1">{recipe.name}</h4>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {recipe.description || "Delicious recipe waiting for you"}
-                    </p>
-                  </div>
-                </div>
+                </Link>
               ))
             )}
           </CardContent>
@@ -228,21 +231,29 @@ export default function Home() {
           <CardDescription>Common tasks to get you started</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Button variant="outline" className="h-auto py-6 flex-col gap-2" data-testid="button-add-ingredient">
-            <Refrigerator className="w-6 h-6" />
-            <span>Add Ingredient</span>
+          <Button asChild variant="outline" className="h-auto py-6 flex-col gap-2" data-testid="button-add-ingredient">
+            <Link href="/my-kitchen">
+              <Refrigerator className="w-6 h-6" />
+              <span>Add Ingredient</span>
+            </Link>
           </Button>
-          <Button variant="outline" className="h-auto py-6 flex-col gap-2" data-testid="button-browse-recipes">
-            <ChefHat className="w-6 h-6" />
-            <span>Browse Recipes</span>
+          <Button asChild variant="outline" className="h-auto py-6 flex-col gap-2" data-testid="button-browse-recipes">
+            <Link href="/recipes">
+              <ChefHat className="w-6 h-6" />
+              <span>Browse Recipes</span>
+            </Link>
           </Button>
-          <Button variant="outline" className="h-auto py-6 flex-col gap-2" data-testid="button-plan-meal">
-            <Calendar className="w-6 h-6" />
-            <span>Plan Meal</span>
+          <Button asChild variant="outline" className="h-auto py-6 flex-col gap-2" data-testid="button-plan-meal">
+            <Link href="/meal-planning">
+              <Calendar className="w-6 h-6" />
+              <span>Plan Meal</span>
+            </Link>
           </Button>
-          <Button variant="outline" className="h-auto py-6 flex-col gap-2" data-testid="button-shopping-list">
-            <ShoppingCart className="w-6 h-6" />
-            <span>Shopping List</span>
+          <Button asChild variant="outline" className="h-auto py-6 flex-col gap-2" data-testid="button-shopping-list">
+            <Link href="/shopping-list">
+              <ShoppingCart className="w-6 h-6" />
+              <span>Shopping List</span>
+            </Link>
           </Button>
         </CardContent>
       </Card>
