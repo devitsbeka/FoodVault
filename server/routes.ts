@@ -977,6 +977,17 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  app.get("/api/shopping-lists/suggestions/meal-plans", isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const suggestions = await storage.getShoppingListSuggestions(user.claims.sub);
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error getting shopping list suggestions:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
   // Shopping List Items routes
   // Shopping List Item routes
   app.patch("/api/shopping-lists/:listId/items/:itemId/status", isAuthenticated, async (req, res) => {

@@ -1387,4 +1387,117 @@ export const storage = {
       .delete(mealSeatAssignments)
       .where(eq(mealSeatAssignments.seatId, seatId));
   },
+
+  async getShoppingListSuggestions(userId: string): Promise<Array<{
+    name: string;
+    quantity: string;
+    unit: string;
+    imageUrl?: string;
+    recipeNames: string[];
+  }>> {
+    // Get upcoming meal plans (next 7 days)
+    const today = new Date();
+    const nextWeek = new Date();
+    nextWeek.setDate(today.getDate() + 7);
+
+    const upcomingMealPlans = await db
+      .select()
+      .from(mealPlans)
+      .where(
+        and(
+          eq(mealPlans.userId, userId),
+          sql`${mealPlans.scheduledFor} >= ${today.toISOString()}`,
+          sql`${mealPlans.scheduledFor} <= ${nextWeek.toISOString()}`
+        )
+      );
+
+    if (upcomingMealPlans.length === 0) {
+      return [];
+    }
+
+    // Get all seats for these meal plans
+    const mealPlanIds = upcomingMealPlans.map(mp => mp.id);
+    const seats = await db
+      .select()
+      .from(mealPlanSeats)
+      .where(inArray(mealPlanSeats.mealPlanId, mealPlanIds));
+
+    // Get all recipe assignments for these seats
+    const seatIds = seats.map(s => s.id);
+    const assignments = await db
+      .select({
+        assignment: mealSeatAssignments,
+        recipe: recipes,
+      })
+      .from(mealSeatAssignments)
+      .innerJoin(recipes, eq(mealSeatAssignments.recipeId, recipes.id))
+      .where(inArray(mealSeatAssignments.seatId, seatIds));
+
+    // Extract all ingredients from recipes with recipe names
+    interface IngredientWithRecipe {
+      name: string;
+      amount: string;
+      unit: string;
+      imageUrl?: string;
+      recipeName: string;
+    }
+
+    const allIngredients: IngredientWithRecipe[] = [];
+    
+    for (const { recipe } of assignments) {
+      const recipeIngredients = (recipe.ingredients as any) || [];
+      for (const ing of recipeIngredients) {
+        allIngredients.push({
+          name: ing.name,
+          amount: ing.amount || "1",
+          unit: ing.unit || "",
+          imageUrl: ing.imageUrl,
+          recipeName: recipe.name,
+        });
+      }
+    }
+
+    // Get current kitchen inventory (normalized names)
+    const inventory = await this.getKitchenInventory(userId);
+    const inventorySet = new Set(
+      inventory.map(item => item.normalizedName).filter(Boolean)
+    );
+
+    // Filter out ingredients we already have
+    const missingIngredients = allIngredients.filter(ing => {
+      const normalized = normalizeIngredientName(ing.name);
+      return !inventorySet.has(normalized);
+    });
+
+    // Group by ingredient name and aggregate recipes
+    const grouped = new Map<string, {
+      name: string;
+      quantity: string;
+      unit: string;
+      imageUrl?: string;
+      recipeNames: Set<string>;
+    }>();
+
+    for (const ing of missingIngredients) {
+      const normalized = normalizeIngredientName(ing.name);
+      if (!grouped.has(normalized)) {
+        grouped.set(normalized, {
+          name: ing.name,
+          quantity: ing.amount,
+          unit: ing.unit,
+          imageUrl: ing.imageUrl,
+          recipeNames: new Set([ing.recipeName]),
+        });
+      } else {
+        // Add recipe name to existing ingredient
+        grouped.get(normalized)!.recipeNames.add(ing.recipeName);
+      }
+    }
+
+    // Convert to array and transform Set to Array
+    return Array.from(grouped.values()).map(item => ({
+      ...item,
+      recipeNames: Array.from(item.recipeNames),
+    }));
+  },
 };

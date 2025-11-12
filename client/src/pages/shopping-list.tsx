@@ -48,6 +48,14 @@ type FamilyMember = {
   };
 };
 
+type ShoppingSuggestion = {
+  name: string;
+  quantity: string;
+  unit: string;
+  imageUrl?: string;
+  recipeNames: string[];
+};
+
 export default function ShoppingListPage() {
   const { toast } = useToast();
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
@@ -72,6 +80,11 @@ export default function ShoppingListPage() {
       return await res.json();
     },
     enabled: !!selectedListId,
+  });
+
+  // Fetch smart suggestions from meal plans
+  const { data: suggestions, isLoading: suggestionsLoading } = useQuery<ShoppingSuggestion[]>({
+    queryKey: ["/api/shopping-lists/suggestions/meal-plans"],
   });
 
   // Auto-select first list when lists load
@@ -368,6 +381,54 @@ export default function ShoppingListPage() {
     moveToReviewMutation.mutate(checkedItems);
   };
 
+  const addSuggestionMutation = useMutation({
+    mutationFn: async ({ listId, suggestion }: { listId: string; suggestion: ShoppingSuggestion }) => {
+      return await apiRequest("POST", `/api/shopping-lists/${listId}/items`, {
+        name: suggestion.name,
+        quantity: suggestion.quantity,
+        unit: suggestion.unit,
+        imageUrl: suggestion.imageUrl,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopping-lists", selectedListId] });
+      toast({
+        title: "Item added",
+        description: "Suggested item has been added to your list.",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to add item. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddSuggestion = (suggestion: ShoppingSuggestion) => {
+    if (!selectedListId) {
+      toast({
+        title: "No list selected",
+        description: "Please select or create a shopping list first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    addSuggestionMutation.mutate({ listId: selectedListId, suggestion });
+  };
+
   const checkedCount = selectedList?.items.filter(item => item.status === 'bought').length || 0;
   const totalCount = selectedList?.items.length || 0;
 
@@ -418,6 +479,62 @@ export default function ShoppingListPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Smart Suggestions from Meal Plans */}
+      {!suggestionsLoading && suggestions && suggestions.length > 0 && (
+        <Alert className="border-primary/20 bg-primary/5">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertDescription>
+            <div className="space-y-4">
+              <div>
+                <p className="font-semibold text-sm mb-2">
+                  Smart Suggestions from Your Meal Plans
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Based on your upcoming meals, you might need these ingredients:
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {suggestions.slice(0, 6).map((suggestion, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-card border hover-elevate"
+                    data-testid={`suggestion-${index}`}
+                  >
+                    <IngredientImage 
+                      imageUrl={suggestion.imageUrl} 
+                      name={suggestion.name} 
+                      size={40}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{suggestion.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {suggestion.quantity} {suggestion.unit}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        For: {suggestion.recipeNames.join(", ")}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleAddSuggestion(suggestion)}
+                      disabled={addSuggestionMutation.isPending || !selectedListId}
+                      data-testid={`button-add-suggestion-${index}`}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              {suggestions.length > 6 && (
+                <p className="text-xs text-muted-foreground text-center">
+                  + {suggestions.length - 6} more suggestions
+                </p>
+              )}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {listsLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
