@@ -19,6 +19,7 @@ import RecipeDetail from "@/pages/recipe-detail";
 import { Home as HomeIcon, Refrigerator, ChefHat, Calendar, Users, ShoppingCart, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link, useLocation } from "wouter";
+import { NotificationsDropdown } from "@/components/notifications-dropdown";
 
 function AppSidebar() {
   const { user } = useAuth();
@@ -147,6 +148,7 @@ function AppContent() {
           <div className="flex flex-col flex-1">
             <header className="flex items-center justify-between p-4 border-b">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
+              <NotificationsDropdown />
             </header>
             <main className="flex-1 overflow-auto">
               <Router />
