@@ -93,3 +93,23 @@ Implement unified ingestion pipeline (Option C) to consolidate all recipe source
 *   `AI_INTEGRATIONS_OPENAI_API_KEY`
 *   `RECIPE_API_KEY`
 *   `VITE_UNSPLASH_ACCESS_KEY`
+
+## Database Seeding
+
+The project includes a seed script (`server/seed.ts`) that populates the database with sample data:
+
+**Sample Data Included:**
+- **User Account**: kanchaveli.b@gmail.com (Kanchaveli B)
+- **Family**: B Family (created by Kanchaveli B)
+- **Family Members**: 
+  - John Doe (john.doe@example.com) - member
+  - Jane Smith (jane.smith@example.com) - member
+  - Alex Jones (alex.jones@example.com) - member
+- **Sample Recipes**: 6 diverse recipes (Italian, Mexican, Vegetarian, etc.)
+
+**Running the Seed Script:**
+```bash
+tsx server/seed.ts
+```
+
+The seed script uses `onConflictDoNothing()` to safely re-run without duplicating data.

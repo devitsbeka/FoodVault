@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { recipes } from "@shared/schema";
+import { recipes, users, families, familyMembers } from "@shared/schema";
 
 const sampleRecipes = [
   {
@@ -167,13 +167,73 @@ const sampleRecipes = [
 ];
 
 async function seed() {
-  console.log("Seeding database with sample recipes...");
+  console.log("Seeding database...");
   
   try {
+    // Seed sample user and family members for kanchaveli.b@gmail.com
+    console.log("\n📧 Creating sample users and family...");
+    
+    const sampleUsers = [
+      {
+        id: 'kanchaveli-b-gmail',
+        email: 'kanchaveli.b@gmail.com',
+        firstName: 'Kanchaveli',
+        lastName: 'B',
+      },
+      {
+        id: 'family-member-1',
+        email: 'john.doe@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+      },
+      {
+        id: 'family-member-2',
+        email: 'jane.smith@example.com',
+        firstName: 'Jane',
+        lastName: 'Smith',
+      },
+      {
+        id: 'family-member-3',
+        email: 'alex.jones@example.com',
+        firstName: 'Alex',
+        lastName: 'Jones',
+      },
+    ];
+
+    for (const user of sampleUsers) {
+      await db.insert(users).values(user).onConflictDoNothing();
+      console.log(`✓ Created user: ${user.firstName} ${user.lastName}`);
+    }
+
+    // Create family
+    await db.insert(families).values({
+      id: 'kanchaveli-family',
+      name: 'B Family',
+      createdById: 'kanchaveli-b-gmail',
+      voteThreshold: 2,
+    }).onConflictDoNothing();
+    console.log("✓ Created family: B Family");
+
+    // Add family members
+    const familyMemberData = [
+      { familyId: 'kanchaveli-family', userId: 'kanchaveli-b-gmail', role: 'admin' },
+      { familyId: 'kanchaveli-family', userId: 'family-member-1', role: 'member' },
+      { familyId: 'kanchaveli-family', userId: 'family-member-2', role: 'member' },
+      { familyId: 'kanchaveli-family', userId: 'family-member-3', role: 'member' },
+    ];
+
+    for (const member of familyMemberData) {
+      await db.insert(familyMembers).values(member).onConflictDoNothing();
+      console.log(`✓ Added family member: ${member.userId}`);
+    }
+
+    // Seed sample recipes
+    console.log("\n🍳 Creating sample recipes...");
     for (const recipe of sampleRecipes) {
-      await db.insert(recipes).values(recipe);
+      await db.insert(recipes).values(recipe).onConflictDoNothing();
       console.log(`✓ Added recipe: ${recipe.name}`);
     }
+    
     console.log("\n✅ Database seeded successfully!");
   } catch (error) {
     console.error("❌ Error seeding database:", error);
