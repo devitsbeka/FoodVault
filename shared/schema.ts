@@ -216,6 +216,41 @@ export const notifications = pgTable("notifications", {
   readAt: timestamp("read_at"),
 });
 
+// ============= RECIPE INTERACTIONS (Smart Recommendations) =============
+
+export const interactionTypeEnum = pgEnum('interaction_type', ['view', 'search']);
+
+export const recipeInteractions = pgTable("recipe_interactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  recipeId: varchar("recipe_id").notNull().references(() => recipes.id, { onDelete: 'cascade' }),
+  interactionType: interactionTypeEnum("interaction_type").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ============= DINING TABLE MEAL PLANNING =============
+
+export const mealPlanSeats = pgTable("meal_plan_seats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mealPlanId: varchar("meal_plan_id").notNull().references(() => mealPlans.id, { onDelete: 'cascade' }),
+  seatNumber: integer("seat_number").notNull(), // 1-6
+  dietaryRestrictions: text("dietary_restrictions").array(), // ['vegetarian', 'gluten-free']
+  assignedUserId: varchar("assigned_user_id").references(() => users.id), // optional family member
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  unique().on(table.mealPlanId, table.seatNumber)
+]);
+
+export const mealSeatAssignments = pgTable("meal_seat_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mealPlanId: varchar("meal_plan_id").notNull().references(() => mealPlans.id, { onDelete: 'cascade' }),
+  seatNumber: integer("seat_number").notNull(), // 1-6
+  recipeId: varchar("recipe_id").notNull().references(() => recipes.id),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+}, (table) => [
+  unique().on(table.mealPlanId, table.seatNumber)
+]);
+
 // ============= RELATIONS =============
 
 export const usersRelations = relations(users, ({ many }) => ({
