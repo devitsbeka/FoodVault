@@ -23,6 +23,20 @@ export default function Recipes() {
 
   const { data: recipes, isLoading } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes", searchQuery, filters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+      if (filters.dietType !== "all") params.append("dietType", filters.dietType);
+      if (filters.maxCalories < 2000) params.append("maxCalories", filters.maxCalories.toString());
+      if (filters.ingredientMatch > 0) params.append("ingredientMatch", filters.ingredientMatch.toString());
+      
+      const url = `/api/recipes${params.toString() ? `?${params.toString()}` : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) {
+        throw new Error(`${res.status}: ${res.statusText}`);
+      }
+      return await res.json();
+    },
   });
 
   const dietOptions = [
