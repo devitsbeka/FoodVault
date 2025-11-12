@@ -5,17 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Clock, Flame, Users, Star, MessageSquare, ChefHat } from "lucide-react";
+import { Clock, Flame, Users, Star, MessageSquare, ChefHat, Check, ShoppingCart, Plus } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useAuth } from "@/hooks/useAuth";
-import type { Recipe } from "@shared/schema";
+import type { Recipe, KitchenInventory, ShoppingList } from "@shared/schema";
 
 type RecipeRating = {
   id: string;
@@ -36,6 +37,8 @@ type RecipeWithRatings = Recipe & {
   ratings: RecipeRating[];
   averageRating: number | null;
   userRating: RecipeRating | null;
+  ownedIngredients?: { name: string; amount: string; unit: string }[];
+  missingIngredients?: { name: string; amount: string; unit: string }[];
 };
 
 export default function RecipeDetail() {
@@ -43,6 +46,8 @@ export default function RecipeDetail() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
+  const [isAddToListDialogOpen, setIsAddToListDialogOpen] = useState(false);
+  const [selectedListId, setSelectedListId] = useState<string>("");
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
 
@@ -53,6 +58,11 @@ export default function RecipeDetail() {
       if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
       return await res.json();
     },
+  });
+
+  const { data: shoppingLists } = useQuery<ShoppingList[]>({
+    queryKey: ["/api/shopping-lists"],
+    enabled: !!user,
   });
 
   const rateMutation = useMutation({
@@ -90,6 +100,61 @@ export default function RecipeDetail() {
 
   const handleSubmitRating = () => {
     rateMutation.mutate({ rating, comment });
+  };
+
+  const addToListMutation = useMutation({
+    mutationFn: async ({ listId, ingredients }: { listId: string; ingredients: { name: string; amount: string; unit: string }[] }) => {
+      // Add each ingredient as a shopping list item
+      for (const ingredient of ingredients) {
+        await apiRequest("POST", `/api/shopping-lists/${listId}/items`, {
+          ingredientName: ingredient.name,
+          quantity: parseFloat(ingredient.amount) || 1,
+          unit: ingredient.unit || "",
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopping-lists"] });
+      setIsAddToListDialogOpen(false);
+      setSelectedListId("");
+      toast({
+        title: "Added to list",
+        description: "Missing ingredients have been added to your shopping list.",
+      });
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to add ingredients to list. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddToList = () => {
+    if (!selectedListId || !recipe?.missingIngredients) return;
+    addToListMutation.mutate({
+      listId: selectedListId,
+      ingredients: recipe.missingIngredients,
+    });
+  };
+
+  const checkIngredientAvailability = (ingredientName: string): "owned" | "missing" => {
+    if (recipe?.ownedIngredients?.some(ing => ing.name.toLowerCase() === ingredientName.toLowerCase())) {
+      return "owned";
+    }
+    return "missing";
   };
 
   if (isLoading) {
