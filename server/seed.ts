@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { sql } from "drizzle-orm";
 import { recipes, users, families, familyMembers } from "@shared/schema";
 
 const sampleRecipes = [
@@ -201,8 +202,15 @@ async function seed() {
     ];
 
     for (const user of sampleUsers) {
-      await db.insert(users).values(user).onConflictDoNothing();
-      console.log(`✓ Created user: ${user.firstName} ${user.lastName}`);
+      await db.insert(users).values(user).onConflictDoUpdate({
+        target: users.id,
+        set: {
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+      });
+      console.log(`✓ Created/updated user: ${user.firstName} ${user.lastName}`);
     }
 
     // Create family
@@ -223,8 +231,11 @@ async function seed() {
     ];
 
     for (const member of familyMemberData) {
-      await db.insert(familyMembers).values(member).onConflictDoNothing();
-      console.log(`✓ Added family member: ${member.userId}`);
+      await db.insert(familyMembers).values(member).onConflictDoUpdate({
+        target: [familyMembers.familyId, familyMembers.userId],
+        set: { role: member.role },
+      });
+      console.log(`✓ Added/updated family member: ${member.userId} (${member.role})`);
     }
 
     // Seed sample recipes
@@ -233,6 +244,35 @@ async function seed() {
       await db.insert(recipes).values(recipe).onConflictDoNothing();
       console.log(`✓ Added recipe: ${recipe.name}`);
     }
+
+    // Verify family members were created correctly
+    console.log("\n🔍 Verifying family setup...");
+    const verifyMembers = await db.select({
+      email: users.email,
+      name: sql`${users.firstName} || ' ' || ${users.lastName}`,
+      role: familyMembers.role,
+    })
+    .from(familyMembers)
+    .innerJoin(users, sql`${users.id} = ${familyMembers.userId}`)
+    .where(sql`${familyMembers.familyId} = 'kanchaveli-family'`);
+
+    if (verifyMembers.length !== 4) {
+      throw new Error(`Expected 4 family members, found ${verifyMembers.length}`);
+    }
+
+    const adminCount = verifyMembers.filter(m => m.role === 'admin').length;
+    const memberCount = verifyMembers.filter(m => m.role === 'member').length;
+
+    if (adminCount !== 1) {
+      throw new Error(`Expected 1 admin, found ${adminCount}`);
+    }
+
+    if (memberCount !== 3) {
+      throw new Error(`Expected 3 members, found ${memberCount}`);
+    }
+
+    console.log("✓ Verified: 1 admin (Kanchaveli B)");
+    console.log("✓ Verified: 3 members (John Doe, Jane Smith, Alex Jones)");
     
     console.log("\n✅ Database seeded successfully!");
   } catch (error) {
