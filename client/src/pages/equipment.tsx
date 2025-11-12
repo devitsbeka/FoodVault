@@ -95,12 +95,22 @@ export default function EquipmentPage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/kitchen-equipment"] });
       const owned = variables.owned;
-      handleCloseModal();
+      
+      if (owned) {
+        handleCloseModal();
+      } else {
+        setModalState({ open: false, itemType: "", itemName: "", location: "indoor" });
+        setOwnsItem(null);
+        setBrand("");
+        setModel("");
+        setNotes("");
+      }
+      
       toast({
         title: variables.toastMessage || (owned ? "Item added" : "Added to wishlist"),
         description: variables.toastDescription || (owned
           ? "Your kitchen equipment has been saved."
-          : "We'll find the best recommendations for you."),
+          : "Loading recommendations..."),
       });
     },
     onError: (error: Error) => {
@@ -154,6 +164,9 @@ export default function EquipmentPage() {
     setBrand("");
     setModel("");
     setNotes("");
+    setShowRecommendations(false);
+    setRecommendationsItemType("");
+    setRecommendationsItemName("");
   };
 
   const handleOwnershipDecision = (owns: boolean) => {
