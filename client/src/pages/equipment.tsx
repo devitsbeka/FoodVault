@@ -49,6 +49,9 @@ export default function EquipmentPage() {
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [notes, setNotes] = useState("");
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [recommendationsItemType, setRecommendationsItemType] = useState("");
+  const [recommendationsItemName, setRecommendationsItemName] = useState("");
 
   const { data: equipment, isLoading } = useQuery<KitchenEquipment[]>({
     queryKey: ["/api/kitchen-equipment", kitchenLocation],
@@ -61,6 +64,19 @@ export default function EquipmentPage() {
     },
   });
 
+  const { data: recommendations, isLoading: loadingRecommendations } = useQuery<ProductRecommendation[]>({
+    queryKey: ["/api/product-recommendations", recommendationsItemType, recommendationsItemName],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/product-recommendations/${recommendationsItemType}?itemName=${encodeURIComponent(recommendationsItemName)}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return await res.json();
+    },
+    enabled: showRecommendations && !!recommendationsItemType && !!recommendationsItemName,
+  });
+
   const upsertEquipmentMutation = useMutation({
     mutationFn: async (data: {
       itemType: string;
@@ -70,17 +86,21 @@ export default function EquipmentPage() {
       model?: string;
       notes?: string;
       imageUrl?: string;
+      toastMessage?: string;
+      toastDescription?: string;
     }) => {
-      return await apiRequest("POST", "/api/kitchen-equipment", data);
+      const { toastMessage, toastDescription, ...requestData } = data;
+      return await apiRequest("POST", "/api/kitchen-equipment", requestData);
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/kitchen-equipment"] });
+      const owned = variables.owned;
       handleCloseModal();
       toast({
-        title: ownsItem ? "Item added" : "Added to wishlist",
-        description: ownsItem
+        title: variables.toastMessage || (owned ? "Item added" : "Added to wishlist"),
+        description: variables.toastDescription || (owned
           ? "Your kitchen equipment has been saved."
-          : "We'll find the best recommendations for you.",
+          : "We'll find the best recommendations for you."),
       });
     },
     onError: (error: Error) => {
@@ -138,6 +158,11 @@ export default function EquipmentPage() {
 
   const handleOwnershipDecision = (owns: boolean) => {
     setOwnsItem(owns);
+    if (!owns) {
+      setRecommendationsItemType(modalState.itemType);
+      setRecommendationsItemName(modalState.itemName);
+      setShowRecommendations(true);
+    }
   };
 
   const handleSaveEquipment = () => {
@@ -150,6 +175,11 @@ export default function EquipmentPage() {
       return;
     }
 
+    const toastMessage = ownsItem ? "Item added" : "Added to wishlist";
+    const toastDescription = ownsItem
+      ? "Your kitchen equipment has been saved."
+      : "We'll find the best recommendations for you.";
+
     upsertEquipmentMutation.mutate({
       itemType: modalState.itemType,
       location: modalState.location,
@@ -157,6 +187,8 @@ export default function EquipmentPage() {
       brand: ownsItem ? brand : undefined,
       model: ownsItem ? model : undefined,
       notes: notes || undefined,
+      toastMessage,
+      toastDescription,
     });
   };
 
@@ -340,6 +372,94 @@ export default function EquipmentPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {showRecommendations && (
+        <div className="mt-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Product Recommendations for {recommendationsItemName}</CardTitle>
+              <CardDescription>
+                AI-powered suggestions for the best {recommendationsItemName.toLowerCase()} products
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loadingRecommendations ? (
+                <div className="flex items-center justify-center py-12" data-testid="loading-recommendations">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : recommendations && recommendations.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {recommendations.map((product, index) => (
+                    <Card key={index} className="overflow-hidden hover-elevate" data-testid={`product-card-${index}`}>
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="w-full h-48 object-cover"
+                        data-testid={`product-image-${index}`}
+                      />
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h3 className="font-semibold text-base line-clamp-2" data-testid={`product-name-${index}`}>
+                            {product.name}
+                          </h3>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Star className="w-4 h-4 fill-primary text-primary" />
+                            <span className="text-sm font-medium" data-testid={`product-rating-${index}`}>
+                              {product.rating}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-1" data-testid={`product-brand-${index}`}>
+                          {product.brand}
+                        </p>
+                        <p className="text-lg font-bold text-primary mb-3" data-testid={`product-price-${index}`}>
+                          {product.price}
+                        </p>
+                        <p className="text-sm text-muted-foreground mb-3 line-clamp-2" data-testid={`product-description-${index}`}>
+                          {product.description}
+                        </p>
+                        <div className="space-y-1 mb-4">
+                          {product.features.slice(0, 3).map((feature, featureIndex) => (
+                            <div key={featureIndex} className="flex items-start gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                              <p className="text-xs text-muted-foreground">{feature}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          data-testid={`button-view-product-${index}`}
+                        >
+                          <ShoppingCart className="w-4 h-4 mr-2" />
+                          View Product
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-8" data-testid="no-recommendations">
+                  No recommendations available at this time.
+                </p>
+              )}
+              <div className="mt-6 flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowRecommendations(false);
+                    setRecommendationsItemType("");
+                    setRecommendationsItemName("");
+                  }}
+                  data-testid="button-close-recommendations"
+                >
+                  Close Recommendations
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

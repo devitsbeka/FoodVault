@@ -2,7 +2,7 @@
 import type { Express, Response } from "express";
 import { storage } from "./storage";
 import { isAuthenticated, optionalAuth } from "./replitAuth";
-import { getChatCompletion, getProductRecommendations } from "./openai";
+import { getChatCompletion, getProductRecommendations, getProductImageUrl } from "./openai";
 import { insertKitchenInventorySchema, insertKitchenEquipmentSchema, insertMealPlanSchema, insertMealVoteSchema, insertRecipeSchema, insertRecipeRatingSchema, insertShoppingListSchema, insertShoppingListItemSchema, insertInventoryReviewQueueSchema, insertNotificationSchema } from "@shared/schema";
 import { searchRecipes, getRecipeById as getApiRecipeById } from "./recipeApi";
 import { searchSpoonacularRecipes, getSpoonacularRecipeById, getIngredientImageMemoized, getIngredientSuggestionsMemoized } from "./spoonacularApi";
@@ -106,8 +106,18 @@ export function registerRoutes(app: Express) {
       const user = req.user as any;
       const validatedData = insertKitchenEquipmentSchema.parse(req.body);
       
+      let imageUrl = validatedData.imageUrl;
+      if (!imageUrl && validatedData.owned && (validatedData.brand || validatedData.model)) {
+        imageUrl = await getProductImageUrl(
+          validatedData.itemType,
+          validatedData.brand,
+          validatedData.model
+        );
+      }
+      
       const equipment = await storage.upsertKitchenEquipment({
         ...validatedData,
+        imageUrl: imageUrl || null,
         userId: user.claims.sub,
       });
       res.json(equipment);
