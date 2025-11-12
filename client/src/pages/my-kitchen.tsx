@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Calendar, X } from "lucide-react";
+import { Plus, Trash2, Calendar, X, ImageOff } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { KitchenInventory, InsertKitchenInventory } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
@@ -169,7 +169,7 @@ export default function MyKitchen() {
   const filteredInventory = inventory?.filter(item => item.category === selectedCategory) || [];
 
   // Load images for existing inventory items
-  useState(() => {
+  useEffect(() => {
     if (inventory) {
       inventory.forEach(item => {
         if (!ingredientImages[item.name]) {
@@ -177,7 +177,8 @@ export default function MyKitchen() {
         }
       });
     }
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventory]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -389,7 +390,7 @@ export default function MyKitchen() {
                                 />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10">
-                                  <span className="text-4xl opacity-20">🍽️</span>
+                                  <ImageOff className="w-12 h-12 opacity-20" />
                                 </div>
                               )}
                               
