@@ -52,7 +52,7 @@ export interface NormalizedRecipe {
   servings: number;
   calories: number | null;
   dietType: string | null;
-  ingredients: Array<{ name: string; amount: string; unit: string }>;
+  ingredients: Array<{ name: string; amount: string; unit: string; imageUrl?: string }>;
   instructions: string[];
   tags: string[];
   averageRating: number | null;
@@ -62,11 +62,12 @@ export interface NormalizedRecipe {
 
 // Normalize Spoonacular recipe to our format
 function normalizeSpoonacularRecipe(recipe: SpoonacularRecipe): NormalizedRecipe {
-  // Extract ingredients
+  // Extract ingredients with images
   const ingredients = (recipe.extendedIngredients || []).map(ing => ({
     name: ing.name || ing.originalName,
     amount: ing.amount?.toString() || '1',
-    unit: ing.unit || ''
+    unit: ing.unit || '',
+    imageUrl: ing.image ? `https://spoonacular.com/cdn/ingredients_100x100/${ing.image}` : undefined
   }));
 
   // Extract instructions
