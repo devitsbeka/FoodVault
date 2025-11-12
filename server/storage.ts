@@ -52,6 +52,24 @@ export const storage = {
   },
 
   // Recipes
+  async getRecipeSummaries(limit: number = 15, dietType?: string): Promise<Array<{id: string, name: string, dietType: string | null, calories: number | null}>> {
+    let query = db
+      .select({
+        id: recipes.id,
+        name: recipes.name,
+        dietType: recipes.dietType,
+        calories: recipes.calories,
+      })
+      .from(recipes);
+    
+    if (dietType && dietType !== 'all') {
+      query = query.where(eq(recipes.dietType, dietType));
+    }
+    
+    const results = await query.limit(limit).orderBy(desc(recipes.createdAt));
+    return results;
+  },
+
   async getRecipes(filters?: {
     searchQuery?: string;
     dietType?: string;

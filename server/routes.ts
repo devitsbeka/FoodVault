@@ -270,11 +270,80 @@ export function registerRoutes(app: Express) {
         content,
       });
 
+      // Get user context for AI
+      const userProfile = await storage.getUserById(user.claims.sub);
+      const inventory = await storage.getKitchenInventory(user.claims.sub);
+      const upcomingMeals = await storage.getUpcomingMeals(user.claims.sub);
+      const family = await storage.getFamily(user.claims.sub);
+      // Get limited recipe summaries for AI context (optimized query)
+      const recipeSummaries = await storage.getRecipeSummaries(15);
+      
+      // Build context-aware system message
+      let contextInfo = `You are a helpful kitchen assistant. Help users with recipes, meal planning, cooking tips, and ingredient suggestions. Be concise and friendly.\n\n`;
+      
+      if (userProfile?.dietType || userProfile?.allergies) {
+        contextInfo += `User preferences:\n`;
+        if (userProfile.dietType) contextInfo += `- Diet: ${userProfile.dietType}\n`;
+        if (userProfile.allergies && userProfile.allergies.length > 0) {
+          contextInfo += `- Allergies: ${userProfile.allergies.join(', ')}\n`;
+        }
+        contextInfo += `\n`;
+      }
+      
+      if (family) {
+        contextInfo += `Family information:\n`;
+        contextInfo += `- Family name: ${family.name}\n`;
+        contextInfo += `- Members: ${family.members.length}\n`;
+        contextInfo += `- Vote threshold for meals: ${family.voteThreshold}\n\n`;
+      }
+      
+      if (inventory.length > 0) {
+        contextInfo += `Current kitchen inventory:\n`;
+        const itemsByLocation = inventory.reduce((acc, item) => {
+          if (!acc[item.location]) acc[item.location] = [];
+          acc[item.location].push(item);
+          return acc;
+        }, {} as Record<string, typeof inventory>);
+        
+        for (const [location, items] of Object.entries(itemsByLocation)) {
+          contextInfo += `${location}: ${items.map(i => i.name).join(', ')}\n`;
+        }
+        contextInfo += `\n`;
+      }
+      
+      if (upcomingMeals.length > 0) {
+        contextInfo += `Upcoming meals:\n`;
+        upcomingMeals.slice(0, 5).forEach(meal => {
+          const date = new Date(meal.scheduledFor).toLocaleDateString();
+          contextInfo += `- ${meal.recipe.name} (${date})\n`;
+        });
+        contextInfo += `\n`;
+      }
+      
+      if (recipeSummaries.length > 0) {
+        contextInfo += `Available recipes in our database:\n`;
+        // Group by diet type for better context
+        const recipesByDiet = recipeSummaries.reduce((acc, recipe) => {
+          const diet = recipe.dietType || 'other';
+          if (!acc[diet]) acc[diet] = [];
+          acc[diet].push(recipe.name);
+          return acc;
+        }, {} as Record<string, string[]>);
+        
+        for (const [diet, names] of Object.entries(recipesByDiet)) {
+          contextInfo += `${diet}: ${names.join(', ')}\n`;
+        }
+        contextInfo += `\n`;
+      }
+      
+      contextInfo += `When suggesting recipes, prioritize recipes from our database and consider the user's preferences, available ingredients, and upcoming meals.\n\n`;
+      contextInfo += `If the user asks to create a shopping list, provide a clear formatted list. Users can then save these suggestions to their shopping lists.`;
+
       const conversationHistory = await storage.getChatMessages(user.claims.sub);
       
       const systemMessage = {
         role: "system",
-        content: "You are a helpful kitchen assistant. Help users with recipes, meal planning, cooking tips, and ingredient suggestions. Be concise and friendly.",
+        content: contextInfo,
       };
 
       const messages = [
