@@ -39,6 +39,7 @@ Core entities include Users (profiles, preferences), Kitchen Inventory (items, e
 *   **AI Chat Assistant:** Integrates OpenAI GPT-5 via Replit AI Integrations for context-aware recipe suggestions and shopping list generation.
 *   **Family Collaboration:** Supports family creation, member invitation, role-based access, shared meal plans, and family-wide inventory visibility. Authorization layer prevents cross-family meal plan access.
 *   **Inline Recipe Filters:** Airbnb-style inline filter buttons for cuisine (Italian, Mexican, Chinese, Japanese, Thai, French, Mediterranean, American, Indian) and meal type (breakfast, lunch, dinner, snack). Filters work with diet type, calories, and fridge ingredient matching.
+*   **For You Feed:** Instagram/TikTok-style personalized feed with poll-based preference learning. Features horizontal stories bar with featured recipes, vertical feed of poll cards (4 options in 2x2 grid with related tags), and right sidebar with real-time widgets (fridge status, upcoming dinners, family online status, meal plan RSVPs). Poll responses tracked in database for future recipe recommendation personalization. Feed loads multiple polls upfront (MVP - true infinite scroll pagination pending future iteration). All UI icons from Lucide React (no emojis).
 
 ## Known Limitations
 
