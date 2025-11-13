@@ -288,6 +288,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   reviewQueue: many(inventoryReviewQueue),
   recipeInteractions: many(recipeInteractions),
   mealPlanSeats: many(mealPlanSeats),
+  pollResponses: many(userPollResponses),
+  mealPlanRSVPs: many(mealPlanRSVPs),
 }));
 
 export const familiesRelations = relations(families, ({ one, many }) => ({
@@ -345,6 +347,7 @@ export const mealPlansRelations = relations(mealPlans, ({ one, many }) => ({
   votes: many(mealVotes),
   seats: many(mealPlanSeats),
   seatAssignments: many(mealSeatAssignments),
+  rsvps: many(mealPlanRSVPs),
 }));
 
 export const mealVotesRelations = relations(mealVotes, ({ one }) => ({
@@ -577,3 +580,105 @@ export const insertKitchenEquipmentSchema = createInsertSchema(kitchenEquipment)
 });
 export type InsertKitchenEquipment = z.infer<typeof insertKitchenEquipmentSchema>;
 export type KitchenEquipment = typeof kitchenEquipment.$inferSelect;
+
+// ============= POLLS SYSTEM (For You Feed Personalization) =============
+
+export const pollCategoryEnum = pgEnum('poll_category', [
+  'breakfast_preferences',
+  'cooking_methods',
+  'protein_types',
+  'spice_levels',
+  'meal_times',
+  'cuisine_styles',
+  'dietary_choices',
+  'texture_preferences',
+]);
+
+export const pollQuestions = pgTable("poll_questions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  question: text("question").notNull(),
+  category: pollCategoryEnum("category").notNull(),
+  options: jsonb("options").notNull(), // [{value: 'scrambled', label: 'Scrambled', relatedTags: ['breakfast', 'eggs']}]
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const userPollResponses = pgTable("user_poll_responses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  pollId: varchar("poll_id").notNull().references(() => pollQuestions.id, { onDelete: 'cascade' }),
+  selectedOption: varchar("selected_option").notNull(), // 'scrambled', 'fried', etc.
+  respondedAt: timestamp("responded_at").defaultNow(),
+}, (table) => [
+  unique().on(table.userId, table.pollId)
+]);
+
+// ============= MEAL PLAN RSVPs =============
+
+export const mealPlanRSVPs = pgTable("meal_plan_rsvps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  mealPlanId: varchar("meal_plan_id").notNull().references(() => mealPlans.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  status: varchar("status").notNull().default('pending'), // pending, accepted, declined
+  rsvpedAt: timestamp("rsvped_at").defaultNow(),
+}, (table) => [
+  unique().on(table.mealPlanId, table.userId)
+]);
+
+// ============= POLL RELATIONS =============
+
+export const pollQuestionsRelations = relations(pollQuestions, ({ many }) => ({
+  responses: many(userPollResponses),
+}));
+
+export const userPollResponsesRelations = relations(userPollResponses, ({ one }) => ({
+  user: one(users, {
+    fields: [userPollResponses.userId],
+    references: [users.id],
+  }),
+  poll: one(pollQuestions, {
+    fields: [userPollResponses.pollId],
+    references: [pollQuestions.id],
+  }),
+}));
+
+export const mealPlanRSVPsRelations = relations(mealPlanRSVPs, ({ one }) => ({
+  mealPlan: one(mealPlans, {
+    fields: [mealPlanRSVPs.mealPlanId],
+    references: [mealPlans.id],
+  }),
+  user: one(users, {
+    fields: [mealPlanRSVPs.userId],
+    references: [users.id],
+  }),
+}));
+
+// ============= POLL INSERT SCHEMAS =============
+
+export const insertPollQuestionSchema = createInsertSchema(pollQuestions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertPollQuestion = z.infer<typeof insertPollQuestionSchema>;
+export type PollQuestion = typeof pollQuestions.$inferSelect;
+
+export const insertUserPollResponseSchema = createInsertSchema(userPollResponses).omit({
+  id: true,
+  respondedAt: true,
+});
+export type InsertUserPollResponse = z.infer<typeof insertUserPollResponseSchema>;
+export type UserPollResponse = typeof userPollResponses.$inferSelect;
+
+export const insertMealPlanRSVPSchema = createInsertSchema(mealPlanRSVPs).omit({
+  id: true,
+  rsvpedAt: true,
+});
+export type InsertMealPlanRSVP = z.infer<typeof insertMealPlanRSVPSchema>;
+export type MealPlanRSVP = typeof mealPlanRSVPs.$inferSelect;
+
+// Poll option structure for pollQuestions.options JSONB field
+export type PollOption = {
+  value: string;
+  label: string;
+  relatedTags?: string[]; // Tags to influence recommendations
+};

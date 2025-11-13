@@ -1290,4 +1290,125 @@ export function registerRoutes(app: Express) {
       sendError(res, 500, "Internal server error");
     }
   });
+
+  // ============= FEED & POLLS ROUTES =============
+
+  // Featured recipes for stories bar
+  app.get("/api/feed/stories", isAuthenticated, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const recipes = await storage.getFeaturedRecipes(limit);
+      res.json(recipes);
+    } catch (error) {
+      console.error("Error getting featured recipes:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // Get random unanswered poll
+  app.get("/api/polls/random", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const poll = await storage.getRandomUnansweredPoll(userId);
+      res.json(poll);
+    } catch (error) {
+      console.error("Error getting random poll:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // Submit poll response
+  app.post("/api/polls/respond", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const { insertUserPollResponseSchema } = await import("@shared/schema");
+      const validatedData = insertUserPollResponseSchema.parse({
+        ...req.body,
+        userId,
+      });
+      
+      const response = await storage.submitPollResponse(validatedData);
+      res.json(response);
+    } catch (error: any) {
+      console.error("Error submitting poll response:", error);
+      if (error.name === "ZodError") {
+        return sendError(res, 400, "Invalid request data", "VALIDATION_ERROR", error.errors);
+      }
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // ============= SIDEBAR WIDGET ROUTES =============
+
+  // Fridge status widget
+  app.get("/api/feed/fridge-status", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const status = await storage.getFridgeStatus(userId);
+      res.json(status);
+    } catch (error) {
+      console.error("Error getting fridge status:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // Upcoming dinners widget
+  app.get("/api/feed/upcoming-dinners", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const limit = parseInt(req.query.limit as string) || 5;
+      const dinners = await storage.getUpcomingDinners(userId, limit);
+      res.json(dinners);
+    } catch (error) {
+      console.error("Error getting upcoming dinners:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // Family online status widget
+  app.get("/api/feed/family-status", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const members = await storage.getFamilyMembersStatus(userId);
+      res.json(members);
+    } catch (error) {
+      console.error("Error getting family status:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // Meal plan RSVPs widget
+  app.get("/api/feed/meal-rsvps", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const limit = parseInt(req.query.limit as string) || 5;
+      const rsvps = await storage.getUpcomingMealPlanRSVPs(userId, limit);
+      res.json(rsvps);
+    } catch (error) {
+      console.error("Error getting meal RSVPs:", error);
+      sendError(res, 500, "Internal server error");
+    }
+  });
+
+  // RSVP to meal plan
+  app.post("/api/meal-plans/:mealPlanId/rsvp", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const { insertMealPlanRSVPSchema } = await import("@shared/schema");
+      const validatedData = insertMealPlanRSVPSchema.parse({
+        mealPlanId: req.params.mealPlanId,
+        userId,
+        status: req.body.status,
+      });
+      
+      const rsvp = await storage.upsertMealPlanRSVP(validatedData);
+      res.json(rsvp);
+    } catch (error: any) {
+      console.error("Error submitting RSVP:", error);
+      if (error.name === "ZodError") {
+        return sendError(res, 400, "Invalid request data", "VALIDATION_ERROR", error.errors);
+      }
+      sendError(res, 500, "Internal server error");
+    }
+  });
 }

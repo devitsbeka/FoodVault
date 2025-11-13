@@ -11,6 +11,7 @@ import { LogOut } from "lucide-react";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Home from "@/pages/home";
+import ForYouPage from "@/pages/for-you";
 import MyKitchen from "@/pages/my-kitchen";
 import Recipes from "@/pages/recipes";
 import MealPlanning from "@/pages/meal-planning";
@@ -18,7 +19,7 @@ import FamilyPage from "@/pages/family";
 import ShoppingListPage from "@/pages/shopping-list";
 import RecipeDetail from "@/pages/recipe-detail";
 import Equipment from "@/pages/equipment";
-import { Home as HomeIcon, Refrigerator, ChefHat, Calendar, Users, ShoppingCart, UtensilsCrossed } from "lucide-react";
+import { Home as HomeIcon, Refrigerator, ChefHat, Calendar, Users, ShoppingCart, UtensilsCrossed, Sparkles } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { NotificationsDropdown } from "@/components/notifications-dropdown";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,6 +30,7 @@ function AppSidebar() {
 
   const menuItems = [
     { icon: HomeIcon, label: "Home", path: "/", testId: "nav-home" },
+    { icon: Sparkles, label: "For You", path: "/for-you", testId: "nav-for-you" },
     { icon: Refrigerator, label: "My Kitchen", path: "/my-kitchen", testId: "nav-my-kitchen" },
     { icon: UtensilsCrossed, label: "Equipment", path: "/equipment", testId: "nav-equipment" },
     { icon: ChefHat, label: "Recipes", path: "/recipes", testId: "nav-recipes" },
@@ -120,6 +122,7 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Home} />
+          <Route path="/for-you" component={ForYouPage} />
           <Route path="/my-kitchen" component={MyKitchen} />
           <Route path="/equipment" component={Equipment} />
           <Route path="/recipes" component={Recipes} />

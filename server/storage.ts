@@ -1552,4 +1552,282 @@ export const storage = {
       recipeNames: Array.from(item.recipeNames),
     }));
   },
+
+  // ============= POLLS FOR YOU FEED =============
+
+  async getRandomUnansweredPoll(userId: string): Promise<import("@shared/schema").PollQuestion | null> {
+    const { pollQuestions, userPollResponses } = await import('@shared/schema');
+    const { notInArray } = await import('drizzle-orm');
+    
+    // Get polls the user hasn't answered yet
+    const answeredPollIds = await db
+      .select({ pollId: userPollResponses.pollId })
+      .from(userPollResponses)
+      .where(eq(userPollResponses.userId, userId));
+    
+    const answeredIds = answeredPollIds.map(p => p.pollId);
+    
+    // Get a random unanswered poll
+    let polls;
+    
+    if (answeredIds.length > 0) {
+      polls = await db
+        .select()
+        .from(pollQuestions)
+        .where(
+          and(
+            eq(pollQuestions.isActive, true),
+            notInArray(pollQuestions.id, answeredIds)
+          )
+        )
+        .limit(10);
+    } else {
+      polls = await db
+        .select()
+        .from(pollQuestions)
+        .where(eq(pollQuestions.isActive, true))
+        .limit(10);
+    }
+    
+    if (polls.length === 0) return null;
+    
+    // Return a random poll from the results
+    const randomIndex = Math.floor(Math.random() * polls.length);
+    return polls[randomIndex];
+  },
+
+  async submitPollResponse(params: import("@shared/schema").InsertUserPollResponse): Promise<import("@shared/schema").UserPollResponse> {
+    const { userPollResponses } = await import('@shared/schema');
+    
+    const result = await db
+      .insert(userPollResponses)
+      .values(params)
+      .onConflictDoUpdate({
+        target: [userPollResponses.userId, userPollResponses.pollId],
+        set: {
+          selectedOption: params.selectedOption,
+          respondedAt: new Date(),
+        },
+      })
+      .returning();
+    
+    return result[0];
+  },
+
+  async getUserPollResponses(userId: string): Promise<import("@shared/schema").UserPollResponse[]> {
+    const { userPollResponses } = await import('@shared/schema');
+    
+    return await db
+      .select()
+      .from(userPollResponses)
+      .where(eq(userPollResponses.userId, userId));
+  },
+
+  // ============= FOR YOU FEED =============
+
+  async getFeaturedRecipes(limit: number = 10): Promise<Recipe[]> {
+    // Get highly rated recipes for stories
+    return await db
+      .select()
+      .from(recipes)
+      .where(sql`${recipes.imageUrl} IS NOT NULL`)
+      .orderBy(sql`RANDOM()`)
+      .limit(limit);
+  },
+
+  // ============= SIDEBAR WIDGETS =============
+
+  async getFridgeStatus(userId: string): Promise<{
+    status: 'needs_restock' | 'filled';
+    totalItems: number;
+    expiringCount: number;
+  }> {
+    const inventory = await this.getKitchenInventory(userId);
+    
+    // Count items expiring in next 3 days
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+    
+    const expiringItems = inventory.filter(item => 
+      item.expirationDate && 
+      new Date(item.expirationDate) <= threeDaysFromNow
+    );
+    
+    const status = inventory.length < 5 ? 'needs_restock' : 'filled';
+    
+    return {
+      status,
+      totalItems: inventory.length,
+      expiringCount: expiringItems.length,
+    };
+  },
+
+  async getUpcomingDinners(userId: string, limit: number = 5): Promise<Array<{
+    id: string;
+    recipeName: string;
+    recipeImage: string | null;
+    scheduledFor: Date;
+    isApproved: boolean;
+    voteCount: number;
+  }>> {
+    const now = new Date();
+    
+    const dinners = await db
+      .select({
+        id: mealPlans.id,
+        recipeName: recipes.name,
+        recipeImage: recipes.imageUrl,
+        scheduledFor: mealPlans.scheduledFor,
+        isApproved: mealPlans.isApproved,
+        voteCount: sql<number>`COUNT(DISTINCT ${mealVotes.id})`.as('vote_count'),
+      })
+      .from(mealPlans)
+      .innerJoin(recipes, eq(mealPlans.recipeId, recipes.id))
+      .leftJoin(mealVotes, eq(mealVotes.mealPlanId, mealPlans.id))
+      .where(
+        and(
+          eq(mealPlans.userId, userId),
+          sql`${mealPlans.scheduledFor} >= ${now.toISOString()}`
+        )
+      )
+      .groupBy(
+        mealPlans.id,
+        mealPlans.scheduledFor,
+        mealPlans.isApproved,
+        recipes.id,
+        recipes.name,
+        recipes.imageUrl
+      )
+      .orderBy(mealPlans.scheduledFor)
+      .limit(limit);
+    
+    return dinners.map(d => ({
+      id: d.id,
+      recipeName: d.recipeName,
+      recipeImage: d.recipeImage,
+      scheduledFor: d.scheduledFor!,
+      isApproved: d.isApproved!,
+      voteCount: Number(d.voteCount),
+    }));
+  },
+
+  async getFamilyMembersStatus(userId: string): Promise<Array<{
+    userId: string;
+    firstName: string | null;
+    lastName: string | null;
+    profileImageUrl: string | null;
+    isOnline: boolean;
+  }>> {
+    // Get user's family
+    const userFamily = await db
+      .select({ familyId: familyMembers.familyId })
+      .from(familyMembers)
+      .where(eq(familyMembers.userId, userId))
+      .limit(1);
+    
+    if (userFamily.length === 0) {
+      return [];
+    }
+    
+    const familyId = userFamily[0].familyId;
+    
+    // Get all family members (excluding current user)
+    const members = await db
+      .select({
+        user: users,
+      })
+      .from(familyMembers)
+      .innerJoin(users, eq(familyMembers.userId, users.id))
+      .where(
+        and(
+          eq(familyMembers.familyId, familyId),
+          sql`${users.id} != ${userId}`
+        )
+      );
+    
+    return members.map(m => ({
+      userId: m.user.id,
+      firstName: m.user.firstName,
+      lastName: m.user.lastName,
+      profileImageUrl: m.user.profileImageUrl,
+      isOnline: false, // Placeholder - will implement WebSocket real-time status later
+    }));
+  },
+
+  async getUpcomingMealPlanRSVPs(userId: string, limit: number = 5): Promise<Array<{
+    mealPlanId: string;
+    recipeName: string;
+    scheduledFor: Date;
+    rsvps: Array<{
+      userId: string;
+      firstName: string | null;
+      lastName: string | null;
+      status: string;
+    }>;
+  }>> {
+    const { mealPlanRSVPs } = await import('@shared/schema');
+    const now = new Date();
+    
+    const upcomingMeals = await db
+      .select({
+        mealPlan: mealPlans,
+        recipe: recipes,
+      })
+      .from(mealPlans)
+      .innerJoin(recipes, eq(mealPlans.recipeId, recipes.id))
+      .where(
+        and(
+          eq(mealPlans.userId, userId),
+          sql`${mealPlans.scheduledFor} >= ${now.toISOString()}`,
+          eq(mealPlans.isApproved, true)
+        )
+      )
+      .orderBy(mealPlans.scheduledFor)
+      .limit(limit);
+    
+    const result = [];
+    
+    for (const meal of upcomingMeals) {
+      const rsvps = await db
+        .select({
+          rsvp: mealPlanRSVPs,
+          user: users,
+        })
+        .from(mealPlanRSVPs)
+        .innerJoin(users, eq(mealPlanRSVPs.userId, users.id))
+        .where(eq(mealPlanRSVPs.mealPlanId, meal.mealPlan.id));
+      
+      result.push({
+        mealPlanId: meal.mealPlan.id,
+        recipeName: meal.recipe.name,
+        scheduledFor: meal.mealPlan.scheduledFor!,
+        rsvps: rsvps.map(r => ({
+          userId: r.user.id,
+          firstName: r.user.firstName,
+          lastName: r.user.lastName,
+          status: r.rsvp.status,
+        })),
+      });
+    }
+    
+    return result;
+  },
+
+  async upsertMealPlanRSVP(params: import("@shared/schema").InsertMealPlanRSVP): Promise<import("@shared/schema").MealPlanRSVP> {
+    const { mealPlanRSVPs } = await import('@shared/schema');
+    
+    const result = await db
+      .insert(mealPlanRSVPs)
+      .values(params)
+      .onConflictDoUpdate({
+        target: [mealPlanRSVPs.mealPlanId, mealPlanRSVPs.userId],
+        set: {
+          status: params.status,
+          rsvpedAt: new Date(),
+        },
+      })
+      .returning();
+    
+    return result[0];
+  },
 };
