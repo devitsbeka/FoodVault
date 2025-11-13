@@ -1293,14 +1293,97 @@ export function registerRoutes(app: Express) {
 
   // ============= FEED & POLLS ROUTES =============
 
-  // Featured recipes for stories bar
-  app.get("/api/feed/stories", isAuthenticated, async (req, res) => {
+  // Featured recipes for stories bar - fetch from Spoonacular API
+  app.get("/api/feed/stories", optionalAuth, async (req, res) => {
+    const limit = parseInt(req.query.limit as string) || 20;
+    
     try {
-      const limit = parseInt(req.query.limit as string) || 10;
-      const recipes = await storage.getFeaturedRecipes(limit);
-      res.json(recipes);
+      // Fetch diverse recipes with images from Spoonacular
+      const apiRecipes = await searchSpoonacularRecipes({
+        limit: Math.min(limit, 50), // Cap at 50 for performance
+        offset: 0,
+      });
+      
+      // Filter to only recipes with images for stories
+      const recipesWithImages = apiRecipes.filter(recipe => recipe.imageUrl);
+      
+      res.json(recipesWithImages);
     } catch (error) {
       console.error("Error getting featured recipes:", error);
+      // Fallback to database recipes if API fails
+      try {
+        const recipes = await storage.getFeaturedRecipes(limit);
+        res.json(recipes);
+      } catch (fallbackError) {
+        console.error("Fallback also failed:", fallbackError);
+        sendError(res, 500, "Internal server error");
+      }
+    }
+  });
+
+  // Mixed feed of polls and recipe recommendations
+  app.get("/api/feed/posts", optionalAuth, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const isAuthenticated = !!(req as any).user?.dbUserId;
+      const userId = isAuthenticated ? (req as any).user.dbUserId : null;
+      
+      // Calculate target counts
+      const recipeCount = Math.ceil(limit * 0.6); // 60% recipes
+      const pollCount = Math.floor(limit * 0.4); // 40% polls
+      
+      // Fetch recipe recommendations from Spoonacular
+      const recipes = await searchSpoonacularRecipes({
+        limit: recipeCount,
+        offset: 0,
+      });
+      
+      // Get unanswered polls if user is authenticated
+      let polls: any[] = [];
+      if (isAuthenticated && userId) {
+        // Batch fetch polls efficiently
+        const fetchedPolls: any[] = [];
+        const seenIds = new Set<string>();
+        
+        // Try to get unique polls up to pollCount
+        let attempts = 0;
+        while (fetchedPolls.length < pollCount && attempts < pollCount * 2) {
+          const poll = await storage.getRandomUnansweredPoll(userId);
+          if (poll && !seenIds.has(poll.id)) {
+            fetchedPolls.push(poll);
+            seenIds.add(poll.id);
+          }
+          attempts++;
+        }
+        polls = fetchedPolls;
+      }
+      
+      // Mix polls and recipes
+      const feed: any[] = [];
+      
+      // Add recipes as posts
+      recipes.slice(0, recipeCount).forEach(recipe => {
+        feed.push({
+          type: 'recipe',
+          data: recipe
+        });
+      });
+      
+      // Add polls as posts
+      polls.slice(0, pollCount).forEach(poll => {
+        feed.push({
+          type: 'poll',
+          data: poll
+        });
+      });
+      
+      // Shuffle for variety
+      const shuffled = feed.sort(() => Math.random() - 0.5);
+      
+      // Enforce exact limit
+      res.json(shuffled.slice(0, limit));
+    } catch (error) {
+      console.error("Error getting feed posts:", error);
       sendError(res, 500, "Internal server error");
     }
   });

@@ -112,6 +112,9 @@ function Router() {
 
   return (
     <Switch>
+      {/* Public routes - accessible to everyone */}
+      <Route path="/for-you" component={ForYouPage} />
+      
       {!isAuthenticated ? (
         <>
           <Route path="/" component={Landing} />
@@ -122,7 +125,6 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Home} />
-          <Route path="/for-you" component={ForYouPage} />
           <Route path="/my-kitchen" component={MyKitchen} />
           <Route path="/equipment" component={Equipment} />
           <Route path="/recipes" component={Recipes} />

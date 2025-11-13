@@ -32,6 +32,22 @@ type FeaturedRecipe = {
   imageUrl: string | null;
 };
 
+type RecipePost = {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  description: string | null;
+  prepTime: number | null;
+  cookTime: number | null;
+  servings: number | null;
+  tags: string[];
+};
+
+type FeedPost = {
+  type: 'poll' | 'recipe';
+  data: PollQuestion | RecipePost;
+};
+
 type FridgeStatus = {
   status: "needs_restock" | "filled";
   totalItems: number;
@@ -70,6 +86,11 @@ type MealRSVP = {
 function StoriesBar() {
   const { data: stories = [], isLoading } = useQuery<FeaturedRecipe[]>({
     queryKey: ["/api/feed/stories"],
+    queryFn: async () => {
+      const res = await fetch("/api/feed/stories?limit=20", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stories");
+      return res.json();
+    },
   });
 
   if (isLoading) {
@@ -183,6 +204,134 @@ function PollCard({ poll, onAnswer }: { poll: PollQuestion; onAnswer?: () => voi
             </Button>
           ))}
         </div>
+      </div>
+    </Card>
+  );
+}
+
+function RecipePostCard({ recipe }: { recipe: RecipePost }) {
+  const [isLiked, setIsLiked] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+
+  return (
+    <Card className="overflow-hidden" data-testid={`recipe-post-${recipe.id}`}>
+      {/* Recipe Image */}
+      {recipe.imageUrl ? (
+        <Link href={`/recipes/${recipe.id}`}>
+          <div className="aspect-square w-full overflow-hidden hover-elevate active-elevate-2 cursor-pointer">
+            <img
+              src={recipe.imageUrl}
+              alt={recipe.name}
+              className="w-full h-full object-cover"
+              data-testid={`recipe-image-${recipe.id}`}
+            />
+          </div>
+        </Link>
+      ) : (
+        <div className="aspect-square w-full bg-muted flex items-center justify-center">
+          <UtensilsCrossed className="w-16 h-16 text-muted-foreground" />
+        </div>
+      )}
+
+      {/* Post Content */}
+      <div className="p-4 space-y-3">
+        {/* Interaction Buttons */}
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsLiked(!isLiked)}
+            data-testid={`button-like-${recipe.id}`}
+          >
+            <Heart
+              className={`w-6 h-6 ${isLiked ? "fill-red-500 text-red-500" : ""}`}
+            />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            data-testid={`button-comment-${recipe.id}`}
+          >
+            <Link href={`/recipes/${recipe.id}`}>
+              <MessageCircle className="w-6 h-6" />
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            data-testid={`button-share-${recipe.id}`}
+          >
+            <Share2 className="w-6 h-6" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSaved(!isSaved)}
+            className="ml-auto"
+            data-testid={`button-save-${recipe.id}`}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill={isSaved ? "currentColor" : "none"}
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+            </svg>
+          </Button>
+        </div>
+
+        {/* Recipe Title & Description */}
+        <div>
+          <Link href={`/recipes/${recipe.id}`}>
+            <h3 className="font-semibold text-lg hover:underline" data-testid={`recipe-title-${recipe.id}`}>
+              {recipe.name}
+            </h3>
+          </Link>
+          {recipe.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+              {recipe.description}
+            </p>
+          )}
+        </div>
+
+        {/* Recipe Meta Info */}
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          {recipe.prepTime && (
+            <div className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
+              <span>{recipe.prepTime}min prep</span>
+            </div>
+          )}
+          {recipe.servings && (
+            <div className="flex items-center gap-1">
+              <Users className="w-4 h-4" />
+              <span>{recipe.servings} servings</span>
+            </div>
+          )}
+        </div>
+
+        {/* Tags */}
+        {recipe.tags && recipe.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {recipe.tags.slice(0, 5).map((tag) => (
+              <Badge
+                key={tag}
+                variant="secondary"
+                className="text-xs"
+                data-testid={`recipe-tag-${tag}`}
+              >
+                #{tag}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -434,22 +583,13 @@ export default function ForYouPage() {
   const [answeredPolls, setAnsweredPolls] = useState<Set<string>>(new Set());
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   
-  // Fetch multiple polls
-  const { data: polls = [], isLoading: pollsLoading } = useQuery<PollQuestion[]>({
-    queryKey: ["/api/polls/multiple"],
+  // Fetch mixed feed of polls and recipes
+  const { data: feedPosts = [], isLoading: feedLoading } = useQuery<FeedPost[]>({
+    queryKey: ["/api/feed/posts"],
     queryFn: async () => {
-      // Fetch random polls multiple times to simulate feed
-      const results: PollQuestion[] = [];
-      for (let i = 0; i < 5; i++) {
-        const res = await fetch("/api/polls/random", { credentials: "include" });
-        if (res.ok) {
-          const poll = await res.json();
-          if (poll && !answeredPolls.has(poll.id)) {
-            results.push(poll);
-          }
-        }
-      }
-      return results;
+      const res = await fetch("/api/feed/posts?limit=15", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch feed");
+      return res.json();
     },
   });
 
@@ -476,11 +616,11 @@ export default function ForYouPage() {
               </p>
             </div>
 
-            {/* Poll Feed */}
+            {/* Mixed Feed: Polls + Recipe Posts */}
             {authLoading ? (
               <>
                 <div className="h-64 bg-muted animate-pulse rounded-lg" />
-                <div className="h-64 bg-muted animate-pulse rounded-lg" />
+                <div className="h-96 bg-muted animate-pulse rounded-lg" />
                 <div className="h-64 bg-muted animate-pulse rounded-lg" />
               </>
             ) : !isAuthenticated ? (
@@ -501,22 +641,40 @@ export default function ForYouPage() {
                   </a>
                 </Button>
               </Card>
-            ) : pollsLoading ? (
+            ) : feedLoading ? (
               <>
+                <div className="h-96 bg-muted animate-pulse rounded-lg" />
                 <div className="h-64 bg-muted animate-pulse rounded-lg" />
-                <div className="h-64 bg-muted animate-pulse rounded-lg" />
-                <div className="h-64 bg-muted animate-pulse rounded-lg" />
+                <div className="h-96 bg-muted animate-pulse rounded-lg" />
               </>
-            ) : polls.length > 0 ? (
-              polls.filter(p => !answeredPolls.has(p.id)).map((poll) => (
-                <PollCard key={poll.id} poll={poll} onAnswer={() => handlePollAnswer(poll.id)} />
-              ))
+            ) : feedPosts.length > 0 ? (
+              feedPosts.map((post, index) => {
+                if (post.type === 'poll') {
+                  const poll = post.data as PollQuestion;
+                  if (answeredPolls.has(poll.id)) return null;
+                  return (
+                    <PollCard 
+                      key={`poll-${poll.id}`} 
+                      poll={poll} 
+                      onAnswer={() => handlePollAnswer(poll.id)} 
+                    />
+                  );
+                } else {
+                  const recipe = post.data as RecipePost;
+                  return (
+                    <RecipePostCard 
+                      key={`recipe-${recipe.id}`} 
+                      recipe={recipe} 
+                    />
+                  );
+                }
+              })
             ) : (
               <Card className="p-8 text-center">
                 <BarChart3 className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                 <h3 className="font-semibold text-lg mb-2">All caught up!</h3>
                 <p className="text-muted-foreground">
-                  You've answered all available polls. Check back later for more personalized recommendations.
+                  You've seen all available content. Check back later for more!
                 </p>
               </Card>
             )}
