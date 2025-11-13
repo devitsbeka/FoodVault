@@ -7,9 +7,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
-import { Heart, MessageCircle, Share2, Refrigerator, Calendar, Users, Check, X, Clock, UtensilsCrossed, BarChart3, ChefHat } from "lucide-react";
+import { Heart, MessageCircle, Share2, Refrigerator, Calendar, Users, Check, X, Clock, UtensilsCrossed, BarChart3, ChefHat, LogIn } from "lucide-react";
 import { Link } from "wouter";
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 type PollOption = {
   value: string;
@@ -431,6 +432,7 @@ function MealRSVPsWidget() {
 export default function ForYouPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [answeredPolls, setAnsweredPolls] = useState<Set<string>>(new Set());
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   
   // Fetch multiple polls
   const { data: polls = [], isLoading: pollsLoading } = useQuery<PollQuestion[]>({
@@ -475,7 +477,31 @@ export default function ForYouPage() {
             </div>
 
             {/* Poll Feed */}
-            {pollsLoading ? (
+            {authLoading ? (
+              <>
+                <div className="h-64 bg-muted animate-pulse rounded-lg" />
+                <div className="h-64 bg-muted animate-pulse rounded-lg" />
+                <div className="h-64 bg-muted animate-pulse rounded-lg" />
+              </>
+            ) : !isAuthenticated ? (
+              <Card className="p-12 text-center">
+                <LogIn className="w-16 h-16 mx-auto mb-4 text-primary" />
+                <h3 className="font-semibold text-2xl mb-3">Welcome to Your Feed!</h3>
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  Sign in to discover personalized recipes, answer preference polls, and get recommendations tailored just for you.
+                </p>
+                <Button 
+                  size="lg" 
+                  asChild
+                  data-testid="button-login"
+                >
+                  <a href="/api/login">
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Sign In with Replit
+                  </a>
+                </Button>
+              </Card>
+            ) : pollsLoading ? (
               <>
                 <div className="h-64 bg-muted animate-pulse rounded-lg" />
                 <div className="h-64 bg-muted animate-pulse rounded-lg" />
