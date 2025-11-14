@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Link } from "wouter";
-import type { Event, MealPlan, Recipe } from "@shared/schema";
+import type { Event, MealPlan, MealPlanWithRecipe, Recipe } from "@shared/schema";
 import { format, parseISO } from "date-fns";
 
 type EventWithMeals = Event & {
@@ -58,7 +58,7 @@ export default function EventDetailPage() {
   });
 
   // Get user's meal plans for selection
-  const { data: mealPlans = [], isLoading: isLoadingMealPlans } = useQuery<MealPlan[]>({
+  const { data: mealPlans = [], isLoading: isLoadingMealPlans } = useQuery<MealPlanWithRecipe[]>({
     queryKey: ["/api/meal-plans"],
     enabled: isAddMealDialogOpen,
   });
@@ -292,7 +292,7 @@ export default function EventDetailPage() {
                       ) : (
                         mealPlans.map((plan) => (
                           <SelectItem key={plan.id} value={plan.id}>
-                            {`Meal for ${format(parseISO(plan.scheduledFor.toString()), "MMM d, yyyy")}`}
+                            {`${plan.recipe?.name || "Unnamed Recipe"} • ${format(parseISO(plan.scheduledFor.toString()), "MMM d")}`}
                           </SelectItem>
                         ))
                       )}
@@ -303,7 +303,7 @@ export default function EventDetailPage() {
                   <label className="text-sm font-medium">Dish Type</label>
                   <Select value={selectedDishType} onValueChange={setSelectedDishType}>
                     <SelectTrigger data-testid="select-dish-type">
-                      <SelectValue />
+                      <SelectValue placeholder="Select dish type" />
                     </SelectTrigger>
                     <SelectContent>
                       {DISH_TYPES.map((type) => (

@@ -192,8 +192,6 @@ export function registerRoutes(app: Express) {
           cuisine: cuisine as string,
           mealType: mealType as string,
           maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
-          limit: requestLimit,
-          offset: offset ? parseInt(offset as string) : 0,
         });
         return res.json(localRecipes);
       }
@@ -548,12 +546,30 @@ export function registerRoutes(app: Express) {
   app.post("/api/meal-plans", isAuthenticated, async (req, res) => {
     try {
       const userId = (req as any).user.dbUserId;
-      const validatedData = insertMealPlanSchema.parse({
-        ...req.body,
-        userId: userId,
-      });
-      const mealPlan = await storage.addMealPlan(validatedData);
-      res.json(mealPlan);
+      const { mealPlanRequestSchema } = await import("@shared/schema");
+      
+      // Parse discriminated union
+      const requestData = mealPlanRequestSchema.parse(req.body);
+      
+      if (requestData.variant === "simple") {
+        // Legacy single-recipe meal plan
+        const mealPlan = await storage.addMealPlan({
+          userId,
+          familyId: requestData.familyId,
+          recipeId: requestData.recipeId,
+          scheduledFor: new Date(requestData.scheduledFor),
+        });
+        res.json(mealPlan);
+      } else {
+        // Multi-seat dining table meal plan
+        const result = await storage.createMealPlanWithSeats({
+          userId,
+          familyId: requestData.familyId,
+          scheduledFor: requestData.scheduledFor,
+          seats: requestData.seats,
+        });
+        res.json(result);
+      }
     } catch (error: any) {
       console.error("Error adding meal plan:", error);
       if (error.name === "ZodError") {

@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { eq, and, gte, desc, sql, inArray, isNull, isNotNull, or } from "drizzle-orm";
-import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification, InsertMealPlanSeat, MealPlanSeat, InsertMealSeatAssignment, MealSeatAssignment, InsertRecipeInteraction, RecipeInteraction, InsertKitchenEquipment, KitchenEquipment } from "@shared/schema";
+import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, MealPlanWithRecipe, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification, InsertMealPlanSeat, MealPlanSeat, InsertMealSeatAssignment, MealSeatAssignment, InsertRecipeInteraction, RecipeInteraction, InsertKitchenEquipment, KitchenEquipment } from "@shared/schema";
 import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications, mealPlanSeats, mealSeatAssignments, recipeInteractions, kitchenEquipment } from "@shared/schema";
 import { normalizeIngredientName } from "./normalizationService";
 
@@ -433,7 +433,7 @@ export const storage = {
   },
 
   // Meal Plans
-  async getMealPlans(userId: string): Promise<any[]> {
+  async getMealPlans(userId: string): Promise<MealPlanWithRecipe[]> {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     
@@ -526,6 +526,67 @@ export const storage = {
       .limit(1);
     
     return result[0] || null;
+  },
+
+  async createMealPlanWithSeats(params: {
+    userId: string;
+    familyId?: string | null;
+    scheduledFor: string;
+    seats: Array<{
+      seatNumber: number;
+      dietaryRestrictions: string[];
+      recipeId: string;
+      assignedUserId?: string | null;
+    }>;
+  }): Promise<MealPlan & { seats: any[] }> {
+    // Validate at least one seat
+    if (!params.seats || params.seats.length === 0) {
+      throw new Error("At least one seat is required");
+    }
+
+    // Use transaction to ensure atomicity
+    return await db.transaction(async (tx) => {
+      // Create meal plan with null recipeId (recipes are per-seat)
+      const mealPlanResult = await tx.insert(mealPlans).values({
+        userId: params.userId,
+        familyId: params.familyId,
+        recipeId: null, // null for multi-seat meals
+        scheduledFor: new Date(params.scheduledFor),
+      }).returning();
+      
+      const mealPlan = mealPlanResult[0];
+
+      // Create seats and assignments
+      const seatsWithAssignments = [];
+      
+      for (const seatData of params.seats) {
+        // Create seat
+        const seatResult = await tx.insert(mealPlanSeats).values({
+          mealPlanId: mealPlan.id,
+          seatNumber: seatData.seatNumber,
+          dietaryRestrictions: seatData.dietaryRestrictions,
+          assignedUserId: seatData.assignedUserId,
+        }).returning();
+        
+        const seat = seatResult[0];
+
+        // Create assignment
+        await tx.insert(mealSeatAssignments).values({
+          seatId: seat.id,
+          recipeId: seatData.recipeId,
+        });
+
+        seatsWithAssignments.push({
+          ...seat,
+          recipeId: seatData.recipeId,
+        });
+      }
+
+      return {
+        ...mealPlan,
+        seats: seatsWithAssignments,
+      };
+    });
   },
 
   async voteMealPlan(vote: InsertMealVote): Promise<{ vote: MealVote; mealPlanApproved: boolean }> {

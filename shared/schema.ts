@@ -141,7 +141,7 @@ export const mealPlans = pgTable("meal_plans", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   familyId: varchar("family_id").references(() => families.id, { onDelete: 'cascade' }),
   userId: varchar("user_id").references(() => users.id), // for personal meal plans
-  recipeId: varchar("recipe_id").notNull().references(() => recipes.id),
+  recipeId: varchar("recipe_id").references(() => recipes.id), // nullable for multi-seat meals
   scheduledFor: timestamp("scheduled_for").notNull(),
   isApproved: boolean("is_approved").default(false),
   createdAt: timestamp("created_at").defaultNow(),
@@ -529,6 +529,37 @@ export const insertMealPlanSchema = createInsertSchema(mealPlans).omit({
 });
 export type InsertMealPlan = z.infer<typeof insertMealPlanSchema>;
 export type MealPlan = typeof mealPlans.$inferSelect;
+
+export type MealPlanWithRecipe = MealPlan & {
+  recipe: Pick<Recipe, "id" | "name" | "imageUrl"> | null;
+};
+
+// Discriminated union schemas for meal plan creation
+export const simpleMealPlanSchema = z.object({
+  variant: z.literal("simple"),
+  recipeId: z.string(),
+  scheduledFor: z.string(),
+  familyId: z.string().optional().nullable(),
+});
+
+export const tableMealPlanSchema = z.object({
+  variant: z.literal("table"),
+  scheduledFor: z.string(),
+  familyId: z.string().optional().nullable(),
+  seats: z.array(z.object({
+    seatNumber: z.number().int().min(1),
+    dietaryRestrictions: z.array(z.string()),
+    recipeId: z.string(),
+    assignedUserId: z.string().optional().nullable(),
+  })).min(1),
+});
+
+export const mealPlanRequestSchema = z.discriminatedUnion("variant", [
+  simpleMealPlanSchema,
+  tableMealPlanSchema,
+]);
+
+export type MealPlanRequest = z.infer<typeof mealPlanRequestSchema>;
 
 export const insertMealVoteSchema = createInsertSchema(mealVotes).omit({
   id: true,

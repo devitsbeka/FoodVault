@@ -111,6 +111,49 @@ export default function MealPlanning() {
     setRecipePickerOpen(true);
   };
 
+  // Save meal plan mutation
+  const saveMealPlanMutation = useMutation({
+    mutationFn: async () => {
+      const activeSeats = seats.slice(0, seatCount);
+      
+      // Validate all seats have recipes assigned
+      const seatsWithoutRecipes = activeSeats.filter(seat => !seat.recipeId);
+      if (seatsWithoutRecipes.length > 0) {
+        throw new Error(`Please assign recipes to all seats (missing: ${seatsWithoutRecipes.map(s => s.seatNumber).join(', ')})`);
+      }
+
+      // Create single meal plan with multiple seats
+      await apiRequest('POST', '/api/meal-plans', {
+        variant: "table",
+        scheduledFor: new Date(selectedDate + 'T12:00:00').toISOString(),
+        seats: activeSeats.map(seat => ({
+          seatNumber: seat.seatNumber,
+          dietaryRestrictions: seat.dietaryRestrictions,
+          recipeId: seat.recipeId!,
+        })),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Meal plan saved",
+        description: `${seatCount} meal(s) scheduled for ${new Date(selectedDate).toLocaleDateString()}`,
+      });
+      // Invalidate meal plans query to refresh pickers
+      queryClient.invalidateQueries({ queryKey: ['/api/meal-plans'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to save meal plan",
+        description: error.message,
+      });
+    },
+  });
+
+  const handleSaveMealPlan = () => {
+    saveMealPlanMutation.mutate();
+  };
+
   const handleRecipeSelection = (recipe: any) => {
     if (seatForRecipePicker === null) return;
     
@@ -322,9 +365,13 @@ export default function MealPlanning() {
               <Button variant="outline" data-testid="button-clear-all">
                 Clear All
               </Button>
-              <Button data-testid="button-save-meal-plan">
+              <Button 
+                data-testid="button-save-meal-plan"
+                onClick={handleSaveMealPlan}
+                disabled={saveMealPlanMutation.isPending}
+              >
                 <ChefHat className="w-4 h-4 mr-2" />
-                Save Meal Plan
+                {saveMealPlanMutation.isPending ? 'Saving...' : 'Save Meal Plan'}
               </Button>
             </div>
           </Card>
