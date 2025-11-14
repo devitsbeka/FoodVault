@@ -819,6 +819,242 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Events routes (MVP+ feature)
+  app.post("/api/events", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const { insertEventSchema } = await import('@shared/schema');
+      
+      const validation = insertEventSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Validation error",
+          errors: validation.error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message,
+          }))
+        });
+      }
+
+      // If familyId is provided, verify user is a member of that family
+      if (validation.data.familyId) {
+        const isMember = await storage.isUserFamilyMember(userId, validation.data.familyId);
+        if (!isMember) {
+          return res.status(403).json({ message: "You are not a member of this family" });
+        }
+      }
+
+      const event = await storage.createEvent({
+        ...validation.data,
+        userId,
+      });
+
+      res.json(event);
+    } catch (error) {
+      console.error("Error creating event:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/events", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const events = await storage.getEvents(userId);
+      res.json(events);
+    } catch (error) {
+      console.error("Error getting events:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/events/:eventId", isAuthenticated, async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const userId = (req as any).user.dbUserId;
+      
+      const event = await storage.getEventById(eventId);
+      
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+
+      // Check ownership or family membership
+      let hasAccess = event.userId === userId;
+      if (!hasAccess && event.familyId) {
+        hasAccess = await storage.isUserFamilyMember(userId, event.familyId);
+      }
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Get associated meals
+      const meals = await storage.getEventMeals(eventId);
+
+      res.json({ ...event, meals });
+    } catch (error) {
+      console.error("Error getting event:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/events/:eventId", isAuthenticated, async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const userId = (req as any).user.dbUserId;
+
+      // Verify ownership
+      const event = await storage.getEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      if (event.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      // Validate and whitelist allowed update fields
+      const { z } = await import('zod');
+      const updateEventSchema = z.object({
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        scheduledFor: z.string().or(z.date()).optional(),
+        guestCount: z.number().int().positive().optional(),
+        invitedGuests: z.array(z.string()).optional(),
+        notes: z.string().optional(),
+      });
+
+      const validation = updateEventSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Validation error",
+          errors: validation.error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message,
+          }))
+        });
+      }
+
+      // Convert scheduledFor to Date if it's a string
+      const updateData: any = { ...validation.data };
+      if (updateData.scheduledFor && typeof updateData.scheduledFor === 'string') {
+        updateData.scheduledFor = new Date(updateData.scheduledFor);
+      }
+
+      const updated = await storage.updateEvent(eventId, updateData);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating event:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/events/:eventId", isAuthenticated, async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const userId = (req as any).user.dbUserId;
+
+      // Verify ownership
+      const event = await storage.getEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      if (event.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      await storage.deleteEvent(eventId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting event:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/events/:eventId/meals", isAuthenticated, async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      const userId = (req as any).user.dbUserId;
+      const { mealPlanId, dishType } = req.body;
+
+      // Verify event ownership/access (same check as GET)
+      const event = await storage.getEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      
+      let hasEventAccess = event.userId === userId;
+      if (!hasEventAccess && event.familyId) {
+        hasEventAccess = await storage.isUserFamilyMember(userId, event.familyId);
+      }
+      
+      if (!hasEventAccess) {
+        return res.status(403).json({ message: "You don't have access to this event" });
+      }
+
+      if (!mealPlanId) {
+        return res.status(400).json({ message: "Meal plan ID is required" });
+      }
+
+      // Verify meal plan ownership/access
+      const hasMealPlanAccess = await storage.userHasMealPlanAccess(userId, mealPlanId);
+      if (!hasMealPlanAccess) {
+        return res.status(403).json({ message: "You don't have access to this meal plan" });
+      }
+
+      // Verify meal plan and event belong to same family/owner (prevent cross-family linking)
+      const mealPlan = await storage.getMealPlanById(mealPlanId);
+      if (!mealPlan) {
+        return res.status(404).json({ message: "Meal plan not found" });
+      }
+
+      // Both must be in same family, or both must be personal (no family)
+      if (event.familyId !== mealPlan.familyId) {
+        return res.status(403).json({ 
+          message: "Cannot link meal plans across different families or between personal and family events" 
+        });
+      }
+
+      // Check for duplicate meal plan assignment
+      const existingMeals = await storage.getEventMeals(eventId);
+      if (existingMeals.some(m => m.mealPlanId === mealPlanId)) {
+        return res.status(409).json({ message: "This meal plan is already added to the event" });
+      }
+
+      const eventMeal = await storage.addMealToEvent({
+        eventId,
+        mealPlanId,
+        dishType,
+      });
+
+      res.json(eventMeal);
+    } catch (error) {
+      console.error("Error adding meal to event:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/events/:eventId/meals/:eventMealPlanId", isAuthenticated, async (req, res) => {
+    try {
+      const { eventId, eventMealPlanId } = req.params;
+      const userId = (req as any).user.dbUserId;
+
+      // Verify event ownership
+      const event = await storage.getEventById(eventId);
+      if (!event) {
+        return res.status(404).json({ message: "Event not found" });
+      }
+      if (event.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      await storage.removeMealFromEvent(eventMealPlanId);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing meal from event:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Cooking Sessions routes
   app.post("/api/cooking-sessions", isAuthenticated, async (req, res) => {
     try {

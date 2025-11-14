@@ -38,6 +38,7 @@ Core entities include Users, Kitchen Inventory, Recipes, Meal Plans, Meal Plan S
 *   **Inline Recipe Filters:** Airbnb-style filtering for cuisine and meal type.
 *   **For You Feed:** Personalized feed with poll-based preference learning, featuring stories, poll cards for recipe preferences, and real-time widgets (fridge status, upcoming dinners).
 *   **Cooking Mode:** Step-by-step cooking interface with session management, progress tracking, pause/resume functionality, and optional ingredient deduction from inventory upon completion.
+*   **Nutrition Tracking:** Daily nutrition logging with meal recording (recipe-based with portion size multipliers), progress tracking against customizable goals (calories, protein, carbs, fat, sodium), date navigation, and 7-day weekly summary with averages. Features automatic daily log creation, real-time progress bars with zero-division guards, and empty state handling.
 
 ## External Dependencies
 

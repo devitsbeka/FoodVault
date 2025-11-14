@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, gte, desc, sql, inArray, isNull, or } from "drizzle-orm";
+import { eq, and, gte, desc, sql, inArray, isNull, isNotNull, or } from "drizzle-orm";
 import type { UpsertUser, User, InsertKitchenInventory, KitchenInventory, InsertRecipe, Recipe, InsertMealPlan, MealPlan, InsertMealVote, MealVote, InsertChatMessage, ChatMessage, InsertRecipeRating, RecipeRating, InsertFamily, Family, InsertFamilyMember, FamilyMember, InsertShoppingList, ShoppingList, ShoppingListItem, InsertShoppingListItem, InventoryReviewQueue, InsertInventoryReviewQueue, Notification, InsertNotification, InsertMealPlanSeat, MealPlanSeat, InsertMealSeatAssignment, MealSeatAssignment, InsertRecipeInteraction, RecipeInteraction, InsertKitchenEquipment, KitchenEquipment } from "@shared/schema";
 import { users, kitchenInventory, recipes, mealPlans, mealVotes, chatMessages, recipeRatings, families, familyMembers, shoppingLists, shoppingListItems, inventoryReviewQueue, notifications, mealPlanSeats, mealSeatAssignments, recipeInteractions, kitchenEquipment } from "@shared/schema";
 import { normalizeIngredientName } from "./normalizationService";
@@ -2154,5 +2154,126 @@ export const storage = {
     };
     
     return { logs, totals, averages };
+  },
+
+  // Events (MVP+ feature)
+  async createEvent(params: import("@shared/schema").InsertEvent): Promise<import("@shared/schema").Event> {
+    const { events } = await import('@shared/schema');
+    
+    const result = await db
+      .insert(events)
+      .values(params)
+      .returning();
+    
+    return result[0];
+  },
+
+  async getEvents(userId: string): Promise<import("@shared/schema").Event[]> {
+    const { events, familyMembers } = await import('@shared/schema');
+    
+    // Get user's family IDs
+    const userFamilies = await db
+      .select({ familyId: familyMembers.familyId })
+      .from(familyMembers)
+      .where(eq(familyMembers.userId, userId));
+    
+    const familyIds = userFamilies.map(f => f.familyId).filter(id => id !== null);
+    
+    // Get events owned by user OR events in user's families (excluding NULL familyId)
+    const allEvents = await db
+      .select()
+      .from(events)
+      .where(
+        familyIds.length > 0
+          ? or(
+              eq(events.userId, userId),
+              and(
+                isNotNull(events.familyId),
+                inArray(events.familyId, familyIds)
+              )
+            )
+          : eq(events.userId, userId)
+      )
+      .orderBy(desc(events.scheduledFor));
+    
+    return allEvents;
+  },
+
+  async getEventById(eventId: string): Promise<import("@shared/schema").Event | null> {
+    const { events } = await import('@shared/schema');
+    
+    const result = await db
+      .select()
+      .from(events)
+      .where(eq(events.id, eventId))
+      .limit(1);
+    
+    return result[0] || null;
+  },
+
+  async updateEvent(eventId: string, params: Partial<import("@shared/schema").InsertEvent>): Promise<import("@shared/schema").Event> {
+    const { events } = await import('@shared/schema');
+    
+    const result = await db
+      .update(events)
+      .set(params)
+      .where(eq(events.id, eventId))
+      .returning();
+    
+    return result[0];
+  },
+
+  async deleteEvent(eventId: string): Promise<void> {
+    const { events } = await import('@shared/schema');
+    
+    await db
+      .delete(events)
+      .where(eq(events.id, eventId));
+  },
+
+  async addMealToEvent(params: {
+    eventId: string;
+    mealPlanId: string;
+    dishType?: string;
+  }): Promise<import("@shared/schema").EventMealPlan> {
+    const { eventMealPlans } = await import('@shared/schema');
+    
+    const result = await db
+      .insert(eventMealPlans)
+      .values(params)
+      .returning();
+    
+    return result[0];
+  },
+
+  async getEventMeals(eventId: string): Promise<any[]> {
+    const { eventMealPlans, mealPlans, recipes } = await import('@shared/schema');
+    
+    const meals = await db
+      .select({
+        id: eventMealPlans.id,
+        eventId: eventMealPlans.eventId,
+        mealPlanId: eventMealPlans.mealPlanId,
+        dishType: eventMealPlans.dishType,
+        recipeName: recipes.name,
+        recipeId: recipes.id,
+        recipeImageUrl: recipes.imageUrl,
+        scheduledFor: mealPlans.scheduledFor,
+      })
+      .from(eventMealPlans)
+      .leftJoin(mealPlans, eq(eventMealPlans.mealPlanId, mealPlans.id))
+      .leftJoin(recipes, eq(mealPlans.recipeId, recipes.id))
+      .where(eq(eventMealPlans.eventId, eventId))
+      .orderBy(eventMealPlans.dishType);
+    
+    return meals;
+  },
+
+  async removeMealFromEvent(eventMealPlanId: string): Promise<void> {
+    const { eventMealPlans } = await import('@shared/schema');
+    
+    await db
+      .delete(eventMealPlans)
+      .where(eq(eventMealPlans.id, eventMealPlanId));
   },
 };
