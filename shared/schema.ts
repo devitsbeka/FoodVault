@@ -92,6 +92,10 @@ export const recipes = pgTable("recipes", {
   cookTime: integer("cook_time"), // minutes
   servings: integer("servings").default(4),
   calories: integer("calories"),
+  protein: integer("protein"), // grams
+  carbs: integer("carbs"), // grams
+  fat: integer("fat"), // grams
+  sodium: integer("sodium"), // mg
   dietType: varchar("diet_type"), // vegetarian, vegan, keto, etc.
   cuisine: varchar("cuisine"), // italian, mexican, chinese, indian, etc.
   mealType: varchar("meal_type"), // breakfast, lunch, dinner, snack
@@ -869,6 +873,16 @@ export const insertNutritionLogMealSchema = createInsertSchema(nutritionLogMeals
   loggedAt: true,
 });
 export type InsertNutritionLogMeal = z.infer<typeof insertNutritionLogMealSchema>;
+
+// Request schema for adding a meal to nutrition log (API validation)
+export const addMealToLogRequestSchema = z.object({
+  recipeId: z.string().min(1, "Recipe ID is required"),
+  portionSize: z.number().min(0.1, "Portion size must be at least 0.1").max(10, "Portion size cannot exceed 10"),
+  mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack'], {
+    errorMap: () => ({ message: "Meal type must be breakfast, lunch, dinner, or snack" })
+  }),
+});
+export type AddMealToLogRequest = z.infer<typeof addMealToLogRequestSchema>;
 export type NutritionLogMeal = typeof nutritionLogMeals.$inferSelect;
 
 export const insertCookingSessionSchema = createInsertSchema(cookingSessions).omit({

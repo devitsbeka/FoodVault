@@ -1932,4 +1932,211 @@ export const storage = {
       ingredientsDeducted: deductIngredients,
     };
   },
+
+  // Nutrition Tracking
+  async getOrCreateNutritionLog(userId: string, date: string, txClient?: any): Promise<import("@shared/schema").NutritionLog> {
+    const { nutritionLogs } = await import('@shared/schema');
+    const dbClient = txClient || db;
+    
+    // Try to get existing log
+    const existing = await dbClient
+      .select()
+      .from(nutritionLogs)
+      .where(
+        and(
+          eq(nutritionLogs.userId, userId),
+          eq(nutritionLogs.date, date)
+        )
+      )
+      .limit(1);
+    
+    if (existing[0]) {
+      return existing[0];
+    }
+    
+    // Create new log
+    const result = await dbClient
+      .insert(nutritionLogs)
+      .values({
+        userId,
+        date,
+        totalCalories: 0,
+        totalSodium: 0,
+        totalProtein: 0,
+        totalCarbs: 0,
+        totalFat: 0,
+      })
+      .returning();
+    
+    return result[0];
+  },
+
+  async addMealToNutritionLog(params: {
+    userId: string;
+    date: string;
+    recipeId: string;
+    portionSize: number;
+    mealType: string;
+  }): Promise<import("@shared/schema").NutritionLogMeal> {
+    const { nutritionLogs, nutritionLogMeals, recipes } = await import('@shared/schema');
+    
+    return await db.transaction(async (tx) => {
+      // Get or create the daily log within this transaction
+      const log = await storage.getOrCreateNutritionLog(params.userId, params.date, tx);
+      
+      // Get recipe nutrition data
+      const recipe = await tx
+        .select()
+        .from(recipes)
+        .where(eq(recipes.id, params.recipeId))
+        .limit(1);
+      
+      if (!recipe[0]) {
+        throw new Error('Recipe not found');
+      }
+      
+      const r = recipe[0];
+      const portion = params.portionSize;
+      
+      // Calculate nutrition values based on portion size
+      const mealCalories = Math.round((r.calories || 0) * portion);
+      const mealProtein = Math.round((r.protein || 0) * portion);
+      const mealCarbs = Math.round((r.carbs || 0) * portion);
+      const mealFat = Math.round((r.fat || 0) * portion);
+      const mealSodium = Math.round((r.sodium || 0) * portion);
+      
+      // Add meal to log
+      const mealResult = await tx
+        .insert(nutritionLogMeals)
+        .values({
+          nutritionLogId: log.id,
+          recipeId: params.recipeId,
+          portionSize: params.portionSize.toString(),
+          calories: mealCalories,
+          protein: mealProtein,
+          carbs: mealCarbs,
+          fat: mealFat,
+          sodium: mealSodium,
+          mealType: params.mealType,
+        })
+        .returning();
+      
+      // Recalculate totals
+      const allMeals = await tx
+        .select()
+        .from(nutritionLogMeals)
+        .where(eq(nutritionLogMeals.nutritionLogId, log.id));
+      
+      const totals = allMeals.reduce((acc, meal) => ({
+        calories: acc.calories + (meal.calories || 0),
+        protein: acc.protein + (meal.protein || 0),
+        carbs: acc.carbs + (meal.carbs || 0),
+        fat: acc.fat + (meal.fat || 0),
+        sodium: acc.sodium + (meal.sodium || 0),
+      }), { calories: 0, protein: 0, carbs: 0, fat: 0, sodium: 0 });
+      
+      // Update log totals
+      await tx
+        .update(nutritionLogs)
+        .set({
+          totalCalories: totals.calories,
+          totalProtein: totals.protein,
+          totalCarbs: totals.carbs,
+          totalFat: totals.fat,
+          totalSodium: totals.sodium,
+          updatedAt: new Date(),
+        })
+        .where(eq(nutritionLogs.id, log.id));
+      
+      return mealResult[0];
+    });
+  },
+
+  async getNutritionLogByDate(userId: string, date: string): Promise<import("@shared/schema").NutritionLog | null> {
+    const { nutritionLogs } = await import('@shared/schema');
+    
+    const result = await db
+      .select()
+      .from(nutritionLogs)
+      .where(
+        and(
+          eq(nutritionLogs.userId, userId),
+          eq(nutritionLogs.date, date)
+        )
+      )
+      .limit(1);
+    
+    return result[0] || null;
+  },
+
+  async getNutritionLogMeals(nutritionLogId: string): Promise<import("@shared/schema").NutritionLogMeal[]> {
+    const { nutritionLogMeals } = await import('@shared/schema');
+    
+    return await db
+      .select()
+      .from(nutritionLogMeals)
+      .where(eq(nutritionLogMeals.nutritionLogId, nutritionLogId))
+      .orderBy(desc(nutritionLogMeals.loggedAt));
+  },
+
+  async getNutritionLogsByDateRange(userId: string, startDate: string, endDate: string): Promise<import("@shared/schema").NutritionLog[]> {
+    const { nutritionLogs } = await import('@shared/schema');
+    
+    return await db
+      .select()
+      .from(nutritionLogs)
+      .where(
+        and(
+          eq(nutritionLogs.userId, userId),
+          gte(nutritionLogs.date, startDate),
+          sql`${nutritionLogs.date} <= ${endDate}`
+        )
+      )
+      .orderBy(desc(nutritionLogs.date));
+  },
+
+  async getWeeklySummary(userId: string, endDate: string): Promise<{
+    logs: import("@shared/schema").NutritionLog[];
+    averages: {
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      sodium: number;
+    };
+    totals: {
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+      sodium: number;
+    };
+  }> {
+    // Calculate start date (7 days before end date)
+    const end = new Date(endDate);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    const startDate = start.toISOString().split('T')[0];
+    
+    const logs = await storage.getNutritionLogsByDateRange(userId, startDate, endDate);
+    
+    const totals = logs.reduce((acc, log) => ({
+      calories: acc.calories + (log.totalCalories || 0),
+      protein: acc.protein + (log.totalProtein || 0),
+      carbs: acc.carbs + (log.totalCarbs || 0),
+      fat: acc.fat + (log.totalFat || 0),
+      sodium: acc.sodium + (log.totalSodium || 0),
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0, sodium: 0 });
+    
+    const daysWithData = logs.length || 1; // Avoid division by zero
+    const averages = {
+      calories: Math.round(totals.calories / daysWithData),
+      protein: Math.round(totals.protein / daysWithData),
+      carbs: Math.round(totals.carbs / daysWithData),
+      fat: Math.round(totals.fat / daysWithData),
+      sodium: Math.round(totals.sodium / daysWithData),
+    };
+    
+    return { logs, totals, averages };
+  },
 };

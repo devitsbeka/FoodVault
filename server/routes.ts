@@ -728,13 +728,93 @@ export function registerRoutes(app: Express) {
   });
 
   // Nutrition Logs routes (MVP+ feature)
-  app.get("/api/nutrition-logs", isAuthenticated, async (req, res) => {
+  app.get("/api/nutrition/logs", isAuthenticated, async (req, res) => {
     try {
-      // Stub for MVP - returns empty array for now
-      // TODO: Implement nutrition logging feature
-      res.json([]);
+      const userId = (req as any).user.dbUserId;
+      const { date, startDate, endDate } = req.query;
+
+      // Get single day's log
+      if (date && typeof date === 'string') {
+        const log = await storage.getNutritionLogByDate(userId, date);
+        if (!log) {
+          return res.json(null);
+        }
+        const meals = await storage.getNutritionLogMeals(log.id);
+        return res.json({ ...log, meals });
+      }
+
+      // Get date range
+      if (startDate && endDate && typeof startDate === 'string' && typeof endDate === 'string') {
+        const logs = await storage.getNutritionLogsByDateRange(userId, startDate, endDate);
+        return res.json(logs);
+      }
+
+      // Default: return today's log
+      const today = new Date().toISOString().split('T')[0];
+      const log = await storage.getNutritionLogByDate(userId, today);
+      if (!log) {
+        return res.json(null);
+      }
+      const meals = await storage.getNutritionLogMeals(log.id);
+      return res.json({ ...log, meals });
     } catch (error) {
       console.error("Error getting nutrition logs:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/nutrition/logs/:date/meals", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const { date } = req.params;
+
+      // Validate date format
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: "Valid date (YYYY-MM-DD) is required" });
+      }
+
+      // Validate request body using Zod schema
+      const { addMealToLogRequestSchema } = await import('@shared/schema');
+      const validation = addMealToLogRequestSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Validation error",
+          errors: validation.error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message,
+          }))
+        });
+      }
+
+      const { recipeId, portionSize, mealType } = validation.data;
+
+      const meal = await storage.addMealToNutritionLog({
+        userId,
+        date,
+        recipeId,
+        portionSize,
+        mealType,
+      });
+
+      res.json(meal);
+    } catch (error) {
+      console.error("Error adding meal to nutrition log:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/nutrition/summary/weekly", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const { endDate } = req.query;
+
+      const date = typeof endDate === 'string' ? endDate : new Date().toISOString().split('T')[0];
+      const summary = await storage.getWeeklySummary(userId, date);
+
+      res.json(summary);
+    } catch (error) {
+      console.error("Error getting weekly summary:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

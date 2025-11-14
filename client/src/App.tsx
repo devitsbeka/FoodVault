@@ -20,7 +20,8 @@ import ShoppingListPage from "@/pages/shopping-list";
 import RecipeDetail from "@/pages/recipe-detail";
 import Equipment from "@/pages/equipment";
 import CookingMode from "@/pages/cooking-mode";
-import { Home as HomeIcon, Refrigerator, ChefHat, Calendar, Users, ShoppingCart, UtensilsCrossed, Sparkles } from "lucide-react";
+import NutritionPage from "@/pages/nutrition";
+import { Home as HomeIcon, Refrigerator, ChefHat, Calendar, Users, ShoppingCart, UtensilsCrossed, Sparkles, Activity } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { NotificationsDropdown } from "@/components/notifications-dropdown";
 import { useAuth } from "@/hooks/useAuth";
@@ -36,6 +37,7 @@ function AppSidebar() {
     { icon: UtensilsCrossed, label: "Equipment", path: "/equipment", testId: "nav-equipment" },
     { icon: ChefHat, label: "Recipes", path: "/recipes", testId: "nav-recipes" },
     { icon: Calendar, label: "Meal Planning", path: "/meal-planning", testId: "nav-meal-planning" },
+    { icon: Activity, label: "Nutrition", path: "/nutrition", testId: "nav-nutrition" },
     { icon: Users, label: "Family", path: "/family", testId: "nav-family" },
     { icon: ShoppingCart, label: "Shopping List", path: "/shopping-list", testId: "nav-shopping" },
   ];
@@ -132,6 +134,7 @@ function Router() {
           <Route path="/recipes/:id" component={RecipeDetail} />
           <Route path="/cooking/:recipeId" component={CookingMode} />
           <Route path="/meal-planning" component={MealPlanning} />
+          <Route path="/nutrition" component={NutritionPage} />
           <Route path="/family" component={FamilyPage} />
           <Route path="/shopping-list" component={ShoppingListPage} />
         </>
