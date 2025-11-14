@@ -21,7 +21,9 @@ import RecipeDetail from "@/pages/recipe-detail";
 import Equipment from "@/pages/equipment";
 import CookingMode from "@/pages/cooking-mode";
 import NutritionPage from "@/pages/nutrition";
-import { Home as HomeIcon, Refrigerator, ChefHat, Calendar, Users, ShoppingCart, UtensilsCrossed, Sparkles, Activity } from "lucide-react";
+import EventsPage from "@/pages/events";
+import EventDetailPage from "@/pages/event-detail";
+import { Home as HomeIcon, Refrigerator, ChefHat, Calendar, Users, ShoppingCart, UtensilsCrossed, Sparkles, Activity, PartyPopper } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { NotificationsDropdown } from "@/components/notifications-dropdown";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,6 +39,7 @@ function AppSidebar() {
     { icon: UtensilsCrossed, label: "Equipment", path: "/equipment", testId: "nav-equipment" },
     { icon: ChefHat, label: "Recipes", path: "/recipes", testId: "nav-recipes" },
     { icon: Calendar, label: "Meal Planning", path: "/meal-planning", testId: "nav-meal-planning" },
+    { icon: PartyPopper, label: "Events", path: "/events", testId: "nav-events" },
     { icon: Activity, label: "Nutrition", path: "/nutrition", testId: "nav-nutrition" },
     { icon: Users, label: "Family", path: "/family", testId: "nav-family" },
     { icon: ShoppingCart, label: "Shopping List", path: "/shopping-list", testId: "nav-shopping" },
@@ -74,7 +77,7 @@ function AppSidebar() {
           <SidebarMenuItem>
             <div className="flex items-center gap-3 px-4 py-3">
               <Avatar className="w-10 h-10">
-                <AvatarImage src={user?.profileImageUrl} alt={user?.firstName || ""} />
+                <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || ""} />
                 <AvatarFallback>
                   {user?.firstName?.[0]}{user?.lastName?.[0]}
                 </AvatarFallback>
@@ -134,6 +137,8 @@ function Router() {
           <Route path="/recipes/:id" component={RecipeDetail} />
           <Route path="/cooking/:recipeId" component={CookingMode} />
           <Route path="/meal-planning" component={MealPlanning} />
+          <Route path="/events" component={EventsPage} />
+          <Route path="/events/:eventId" component={EventDetailPage} />
           <Route path="/nutrition" component={NutritionPage} />
           <Route path="/family" component={FamilyPage} />
           <Route path="/shopping-list" component={ShoppingListPage} />
