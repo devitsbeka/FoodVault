@@ -739,6 +739,86 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Cooking Sessions routes
+  app.post("/api/cooking-sessions", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const { recipeId } = req.body;
+
+      if (!recipeId || typeof recipeId !== "string") {
+        return res.status(400).json({ message: "Recipe ID is required" });
+      }
+
+      // Check if user already has an active session
+      const existingSession = await storage.getActiveCookingSession(userId);
+      if (existingSession) {
+        return res.status(409).json({ 
+          message: "You already have an active cooking session",
+          existingSession 
+        });
+      }
+
+      const session = await storage.createCookingSession({
+        userId,
+        recipeId,
+        currentStep: 0,
+        status: 'active',
+        timers: [],
+      });
+
+      res.json(session);
+    } catch (error) {
+      console.error("Error starting cooking session:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/cooking-sessions/active", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const session = await storage.getActiveCookingSession(userId);
+      res.json(session);
+    } catch (error) {
+      console.error("Error getting active cooking session:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/cooking-sessions/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { currentStep, status, timers } = req.body;
+
+      const session = await storage.updateCookingSessionProgress(id, {
+        currentStep,
+        status,
+        timers,
+      });
+
+      res.json(session);
+    } catch (error) {
+      console.error("Error updating cooking session:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/cooking-sessions/:id/complete", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { deductIngredients } = req.body;
+
+      const result = await storage.completeCookingSession(
+        id,
+        deductIngredients === true
+      );
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error completing cooking session:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // AI Chat routes
   app.get("/api/chat/messages", isAuthenticated, async (req, res) => {
     try {

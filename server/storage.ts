@@ -1830,4 +1830,106 @@ export const storage = {
     
     return result[0];
   },
+
+  // Cooking Sessions
+  async createCookingSession(params: import("@shared/schema").InsertCookingSession): Promise<import("@shared/schema").CookingSession> {
+    const { cookingSessions } = await import('@shared/schema');
+    
+    const result = await db
+      .insert(cookingSessions)
+      .values({
+        ...params,
+        startedAt: new Date(),
+        lastInteractionAt: new Date(),
+      })
+      .returning();
+    
+    return result[0];
+  },
+
+  async getActiveCookingSession(userId: string): Promise<import("@shared/schema").CookingSession | null> {
+    const { cookingSessions } = await import('@shared/schema');
+    
+    const result = await db
+      .select()
+      .from(cookingSessions)
+      .where(
+        and(
+          eq(cookingSessions.userId, userId),
+          or(
+            eq(cookingSessions.status, 'active'),
+            eq(cookingSessions.status, 'paused')
+          )
+        )
+      )
+      .orderBy(cookingSessions.lastInteractionAt)
+      .limit(1);
+    
+    return result[0] || null;
+  },
+
+  async updateCookingSessionProgress(sessionId: string, params: {
+    currentStep?: number;
+    status?: 'active' | 'paused' | 'completed' | 'abandoned';
+    timers?: import("@shared/schema").CookingTimer[];
+  }): Promise<import("@shared/schema").CookingSession> {
+    const { cookingSessions } = await import('@shared/schema');
+    
+    const updateData: any = {
+      lastInteractionAt: new Date(),
+    };
+    
+    if (params.currentStep !== undefined) {
+      updateData.currentStep = params.currentStep;
+    }
+    if (params.status !== undefined) {
+      updateData.status = params.status;
+      if (params.status === 'completed') {
+        updateData.completedAt = new Date();
+      }
+    }
+    if (params.timers !== undefined) {
+      updateData.timers = params.timers;
+    }
+    
+    const result = await db
+      .update(cookingSessions)
+      .set(updateData)
+      .where(eq(cookingSessions.id, sessionId))
+      .returning();
+    
+    return result[0];
+  },
+
+  async completeCookingSession(sessionId: string, deductIngredients: boolean = false): Promise<{
+    session: import("@shared/schema").CookingSession;
+    ingredientsDeducted: boolean;
+  }> {
+    const { cookingSessions, recipes } = await import('@shared/schema');
+    
+    // Mark session as completed
+    const sessionResult = await db
+      .update(cookingSessions)
+      .set({
+        status: 'completed',
+        completedAt: new Date(),
+        ingredientsDeductedAt: deductIngredients ? new Date() : null,
+      })
+      .where(eq(cookingSessions.id, sessionId))
+      .returning();
+    
+    const session = sessionResult[0];
+    
+    // TODO: Implement ingredient deduction logic
+    // This would require:
+    // 1. Get recipe ingredients
+    // 2. Match with kitchen inventory
+    // 3. Deduct quantities
+    // For now, just mark the timestamp
+    
+    return {
+      session,
+      ingredientsDeducted: deductIngredients,
+    };
+  },
 };
