@@ -12,6 +12,7 @@ import {
   decimal,
   pgEnum,
   unique,
+  date,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -29,6 +30,9 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
+// Enums for user preferences
+export const cookingLevelEnum = pgEnum('cooking_level', ['beginner', 'intermediate', 'advanced']);
+
 // User storage table - Clerk manages authentication
 export const users = pgTable("users", {
   id: varchar("id").primaryKey(), // Clerk user ID (e.g., user_2abc...)
@@ -43,6 +47,15 @@ export const users = pgTable("users", {
   allergies: text("allergies").array(),
   dietType: varchar("diet_type"), // vegetarian, vegan, keto, paleo, etc.
   calorieLimit: integer("calorie_limit"),
+  
+  // MVP+ additions
+  cookingLevel: cookingLevelEnum("cooking_level").default('beginner'),
+  householdSize: integer("household_size"),
+  maxSodium: integer("max_sodium"), // mg per day
+  proteinTarget: integer("protein_target"), // grams per day
+  carbsTarget: integer("carbs_target"), // grams per day
+  fatTarget: integer("fat_target"), // grams per day
+  onboardingCompleted: boolean("onboarding_completed").default(false),
 });
 
 export type UpsertUser = typeof users.$inferInsert;
@@ -290,6 +303,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   mealPlanSeats: many(mealPlanSeats),
   pollResponses: many(userPollResponses),
   mealPlanRSVPs: many(mealPlanRSVPs),
+  events: many(events),
+  nutritionLogs: many(nutritionLogs),
+  cookingSessions: many(cookingSessions),
 }));
 
 export const familiesRelations = relations(families, ({ one, many }) => ({
@@ -300,6 +316,7 @@ export const familiesRelations = relations(families, ({ one, many }) => ({
   members: many(familyMembers),
   mealPlans: many(mealPlans),
   shoppingLists: many(shoppingLists),
+  events: many(events),
 }));
 
 export const familyMembersRelations = relations(familyMembers, ({ one }) => ({
@@ -318,6 +335,8 @@ export const recipesRelations = relations(recipes, ({ many }) => ({
   mealPlans: many(mealPlans),
   interactions: many(recipeInteractions),
   seatAssignments: many(mealSeatAssignments),
+  nutritionLogMeals: many(nutritionLogMeals),
+  cookingSessions: many(cookingSessions),
 }));
 
 export const recipeRatingsRelations = relations(recipeRatings, ({ one }) => ({
@@ -348,6 +367,7 @@ export const mealPlansRelations = relations(mealPlans, ({ one, many }) => ({
   seats: many(mealPlanSeats),
   seatAssignments: many(mealSeatAssignments),
   rsvps: many(mealPlanRSVPs),
+  eventMealPlans: many(eventMealPlans),
 }));
 
 export const mealVotesRelations = relations(mealVotes, ({ one }) => ({
@@ -625,6 +645,89 @@ export const mealPlanRSVPs = pgTable("meal_plan_rsvps", {
   unique().on(table.mealPlanId, table.userId)
 ]);
 
+// ============= EVENTS (MVP+) =============
+
+export const events = pgTable("events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  familyId: varchar("family_id").references(() => families.id, { onDelete: 'cascade' }),
+  name: varchar("name").notNull(), // "Game Night", "Dinner Party", etc.
+  description: text("description"),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  guestCount: integer("guest_count").default(2),
+  invitedGuests: text("invited_guests").array(), // Email addresses or names
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("events_user_scheduled_idx").on(table.userId, table.scheduledFor)
+]);
+
+// Junction table to link events with multiple meal plans/recipes
+export const eventMealPlans = pgTable("event_meal_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: 'cascade' }),
+  mealPlanId: varchar("meal_plan_id").notNull().references(() => mealPlans.id, { onDelete: 'cascade' }),
+  dishType: varchar("dish_type"), // main, side, dessert, appetizer
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  unique().on(table.eventId, table.mealPlanId)
+]);
+
+// ============= NUTRITION TRACKING (MVP+) =============
+
+export const nutritionLogs = pgTable("nutrition_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  date: date("date").notNull(), // Date of tracking (YYYY-MM-DD format)
+  totalCalories: integer("total_calories").default(0),
+  totalSodium: integer("total_sodium").default(0), // mg
+  totalProtein: integer("total_protein").default(0), // grams
+  totalCarbs: integer("total_carbs").default(0), // grams
+  totalFat: integer("total_fat").default(0), // grams
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow().$onUpdate(() => new Date()),
+}, (table) => [
+  unique().on(table.userId, table.date),
+  index("nutrition_logs_user_date_idx").on(table.userId, table.date)
+]);
+
+// Individual meal contributions to daily nutrition
+export const nutritionLogMeals = pgTable("nutrition_log_meals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nutritionLogId: varchar("nutrition_log_id").notNull().references(() => nutritionLogs.id, { onDelete: 'cascade' }),
+  recipeId: varchar("recipe_id").notNull().references(() => recipes.id),
+  portionSize: decimal("portion_size").default("1"), // Multiplier (0.5 = half serving, 2 = double)
+  calories: integer("calories"),
+  sodium: integer("sodium"), // mg
+  protein: integer("protein"), // grams
+  carbs: integer("carbs"), // grams
+  fat: integer("fat"), // grams
+  mealType: varchar("meal_type"), // breakfast, lunch, dinner, snack
+  loggedAt: timestamp("logged_at").defaultNow(),
+}, (table) => [
+  index("nutrition_log_meals_log_idx").on(table.nutritionLogId)
+]);
+
+// ============= COOKING MODE (MVP+) =============
+
+export const cookingSessionStatusEnum = pgEnum('cooking_session_status', ['active', 'paused', 'completed', 'abandoned']);
+
+export const cookingSessions = pgTable("cooking_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  recipeId: varchar("recipe_id").notNull().references(() => recipes.id),
+  status: cookingSessionStatusEnum("status").default('active'),
+  currentStep: integer("current_step").default(0), // 0-indexed step number
+  timers: jsonb("timers"), // [{stepNumber, duration, startedAt, label}]
+  notes: text("notes"),
+  startedAt: timestamp("started_at").defaultNow(),
+  lastInteractionAt: timestamp("last_interaction_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  ingredientsDeductedAt: timestamp("ingredients_deducted_at"),
+}, (table) => [
+  index("cooking_sessions_user_status_idx").on(table.userId, table.status)
+]);
+
 // ============= POLL RELATIONS =============
 
 export const pollQuestionsRelations = relations(pollQuestions, ({ many }) => ({
@@ -650,6 +753,60 @@ export const mealPlanRSVPsRelations = relations(mealPlanRSVPs, ({ one }) => ({
   user: one(users, {
     fields: [mealPlanRSVPs.userId],
     references: [users.id],
+  }),
+}));
+
+// MVP+ Relations
+export const eventsRelations = relations(events, ({ one, many }) => ({
+  user: one(users, {
+    fields: [events.userId],
+    references: [users.id],
+  }),
+  family: one(families, {
+    fields: [events.familyId],
+    references: [families.id],
+  }),
+  eventMealPlans: many(eventMealPlans),
+}));
+
+export const eventMealPlansRelations = relations(eventMealPlans, ({ one }) => ({
+  event: one(events, {
+    fields: [eventMealPlans.eventId],
+    references: [events.id],
+  }),
+  mealPlan: one(mealPlans, {
+    fields: [eventMealPlans.mealPlanId],
+    references: [mealPlans.id],
+  }),
+}));
+
+export const nutritionLogsRelations = relations(nutritionLogs, ({ one, many }) => ({
+  user: one(users, {
+    fields: [nutritionLogs.userId],
+    references: [users.id],
+  }),
+  meals: many(nutritionLogMeals),
+}));
+
+export const nutritionLogMealsRelations = relations(nutritionLogMeals, ({ one }) => ({
+  nutritionLog: one(nutritionLogs, {
+    fields: [nutritionLogMeals.nutritionLogId],
+    references: [nutritionLogs.id],
+  }),
+  recipe: one(recipes, {
+    fields: [nutritionLogMeals.recipeId],
+    references: [recipes.id],
+  }),
+}));
+
+export const cookingSessionsRelations = relations(cookingSessions, ({ one }) => ({
+  user: one(users, {
+    fields: [cookingSessions.userId],
+    references: [users.id],
+  }),
+  recipe: one(recipes, {
+    fields: [cookingSessions.recipeId],
+    references: [recipes.id],
   }),
 }));
 
@@ -681,4 +838,53 @@ export type PollOption = {
   value: string;
   label: string;
   relatedTags?: string[]; // Tags to influence recommendations
+};
+
+// ============= MVP+ INSERT SCHEMAS =============
+
+export const insertEventSchema = createInsertSchema(events).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertEvent = z.infer<typeof insertEventSchema>;
+export type Event = typeof events.$inferSelect;
+
+export const insertEventMealPlanSchema = createInsertSchema(eventMealPlans).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertEventMealPlan = z.infer<typeof insertEventMealPlanSchema>;
+export type EventMealPlan = typeof eventMealPlans.$inferSelect;
+
+export const insertNutritionLogSchema = createInsertSchema(nutritionLogs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertNutritionLog = z.infer<typeof insertNutritionLogSchema>;
+export type NutritionLog = typeof nutritionLogs.$inferSelect;
+
+export const insertNutritionLogMealSchema = createInsertSchema(nutritionLogMeals).omit({
+  id: true,
+  loggedAt: true,
+});
+export type InsertNutritionLogMeal = z.infer<typeof insertNutritionLogMealSchema>;
+export type NutritionLogMeal = typeof nutritionLogMeals.$inferSelect;
+
+export const insertCookingSessionSchema = createInsertSchema(cookingSessions).omit({
+  id: true,
+  startedAt: true,
+  lastInteractionAt: true,
+  completedAt: true,
+  ingredientsDeductedAt: true,
+});
+export type InsertCookingSession = z.infer<typeof insertCookingSessionSchema>;
+export type CookingSession = typeof cookingSessions.$inferSelect;
+
+// Timer structure for cookingSessions.timers JSONB field
+export type CookingTimer = {
+  stepNumber: number;
+  duration: number; // seconds
+  startedAt: Date | string;
+  label?: string;
 };
