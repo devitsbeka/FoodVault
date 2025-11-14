@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ export default function RecipeDetail() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [isRatingDialogOpen, setIsRatingDialogOpen] = useState(false);
   const [isAddToListDialogOpen, setIsAddToListDialogOpen] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string>("");
@@ -270,14 +271,15 @@ export default function RecipeDetail() {
         )}
       </div>
 
-      {/* Rate Button */}
-      <Dialog open={isRatingDialogOpen} onOpenChange={setIsRatingDialogOpen}>
-        <DialogTrigger asChild>
-          <Button className="w-full" variant={recipe.userRating ? "outline" : "default"} data-testid="button-rate-recipe">
-            <Star className="w-4 h-4 mr-2" />
-            {recipe.userRating ? "Update Your Rating" : "Rate This Recipe"}
-          </Button>
-        </DialogTrigger>
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <Dialog open={isRatingDialogOpen} onOpenChange={setIsRatingDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="flex-1" variant={recipe.userRating ? "outline" : "default"} data-testid="button-rate-recipe">
+              <Star className="w-4 h-4 mr-2" />
+              {recipe.userRating ? "Update Your Rating" : "Rate This Recipe"}
+            </Button>
+          </DialogTrigger>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rate {recipe.name}</DialogTitle>
@@ -326,6 +328,16 @@ export default function RecipeDetail() {
           </div>
         </DialogContent>
       </Dialog>
+      
+      <Button 
+        className="flex-1" 
+        onClick={() => setLocation(`/cooking/${recipe.id}`)}
+        data-testid="button-start-cooking"
+      >
+        <ChefHat className="w-4 h-4 mr-2" />
+        Start Cooking
+      </Button>
+      </div>
 
       {/* Ingredients */}
       <Card>
