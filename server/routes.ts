@@ -168,7 +168,7 @@ export function registerRoutes(app: Express) {
   // Recipe routes - merging external API with database recipes
   app.get("/api/recipes", optionalAuth, async (req, res) => {
     try {
-      const { search, dietType, cuisine, mealType, maxCalories, limit, offset, ingredientMatch, restrictions } = req.query;
+      const { search, dietType, cuisine, mealType, maxCalories, limit, offset, ingredientMatch, restrictions, source = 'all' } = req.query;
       const requestLimit = limit ? parseInt(limit as string) : 15; // Default to 15 recipes
       const matchThreshold = ingredientMatch ? parseInt(ingredientMatch as string) : 0;
       
@@ -182,6 +182,20 @@ export function registerRoutes(app: Express) {
         } catch (e) {
           console.error("Error parsing restrictions:", e);
         }
+      }
+      
+      // Skip external API if source=local
+      if (source === 'local') {
+        const localRecipes = await storage.getRecipes({
+          searchQuery: search as string,
+          dietType: dietType as string,
+          cuisine: cuisine as string,
+          mealType: mealType as string,
+          maxCalories: maxCalories ? parseInt(maxCalories as string) : undefined,
+          limit: requestLimit,
+          offset: offset ? parseInt(offset as string) : 0,
+        });
+        return res.json(localRecipes);
       }
       
       // Fetch recipes from external API with automatic fallback

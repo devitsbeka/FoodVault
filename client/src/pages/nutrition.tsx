@@ -70,14 +70,11 @@ export default function NutritionPage() {
     queryKey: [`/api/nutrition/summary/weekly?endDate=${selectedDate}`],
   });
 
-  // Get recipes for the meal dialog - only local recipes that exist in database
-  const { data: allRecipes, isLoading: isLoadingRecipes } = useQuery<Recipe[]>({
-    queryKey: ["/api/recipes"],
+  // Get recipes for the meal dialog - only local database recipes
+  const { data: recipes, isLoading: isLoadingRecipes } = useQuery<Recipe[]>({
+    queryKey: ["/api/recipes?source=local"],
     enabled: isAddMealDialogOpen,
   });
-
-  // Filter to only recipes that have been saved to database (not just external API results)
-  const recipes = allRecipes?.filter(r => r.isSaved);
 
   // Add meal mutation
   const addMealMutation = useMutation({

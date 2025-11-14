@@ -518,6 +518,16 @@ export const storage = {
     return result[0];
   },
 
+  async getMealPlanById(mealPlanId: string): Promise<MealPlan | null> {
+    const result = await db
+      .select()
+      .from(mealPlans)
+      .where(eq(mealPlans.id, mealPlanId))
+      .limit(1);
+    
+    return result[0] || null;
+  },
+
   async voteMealPlan(vote: InsertMealVote): Promise<{ vote: MealVote; mealPlanApproved: boolean }> {
     // Upsert the vote
     const result = await db
