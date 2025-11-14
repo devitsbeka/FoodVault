@@ -403,10 +403,10 @@ export default function NutritionPage() {
                         <Icon className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="font-medium" data-testid={`meal-name-${index}`}>Recipe</p>
+                        <p className="font-medium" data-testid={`meal-name-${index}`}>{meal.recipeName || 'Unknown Recipe'}</p>
                         <p className="text-sm text-muted-foreground">
                           {MEAL_TYPE_LABELS[meal.mealType as keyof typeof MEAL_TYPE_LABELS]}
-                          {meal.portionSize !== "1" && ` × ${meal.portionSize}`}
+                          {Number(meal.portionSize) !== 1 && ` × ${Number(meal.portionSize).toFixed(1)}`}
                         </p>
                       </div>
                     </div>
@@ -441,12 +441,12 @@ export default function NutritionPage() {
       </Card>
 
       {/* Weekly Summary */}
-      {weeklySummary && (
+      {weeklySummary && weeklySummary.logs && weeklySummary.logs.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5" />
-              Weekly Summary
+              Weekly Summary (Last 7 Days)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -483,7 +483,22 @@ export default function NutritionPage() {
             </p>
           </CardContent>
         </Card>
-      )}
+      ) : weeklySummary && weeklySummary.logs && weeklySummary.logs.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5" />
+              Weekly Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No nutrition data logged in the past 7 days</p>
+              <p className="text-sm mt-2">Start logging meals to see your weekly summary</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

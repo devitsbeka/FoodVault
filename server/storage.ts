@@ -2069,14 +2069,30 @@ export const storage = {
     return result[0] || null;
   },
 
-  async getNutritionLogMeals(nutritionLogId: string): Promise<import("@shared/schema").NutritionLogMeal[]> {
-    const { nutritionLogMeals } = await import('@shared/schema');
+  async getNutritionLogMeals(nutritionLogId: string): Promise<any[]> {
+    const { nutritionLogMeals, recipes } = await import('@shared/schema');
     
-    return await db
-      .select()
+    const meals = await db
+      .select({
+        id: nutritionLogMeals.id,
+        nutritionLogId: nutritionLogMeals.nutritionLogId,
+        recipeId: nutritionLogMeals.recipeId,
+        portionSize: nutritionLogMeals.portionSize,
+        mealType: nutritionLogMeals.mealType,
+        loggedAt: nutritionLogMeals.loggedAt,
+        calories: nutritionLogMeals.calories,
+        protein: nutritionLogMeals.protein,
+        carbs: nutritionLogMeals.carbs,
+        fat: nutritionLogMeals.fat,
+        sodium: nutritionLogMeals.sodium,
+        recipeName: recipes.name,
+      })
       .from(nutritionLogMeals)
+      .leftJoin(recipes, eq(nutritionLogMeals.recipeId, recipes.id))
       .where(eq(nutritionLogMeals.nutritionLogId, nutritionLogId))
       .orderBy(desc(nutritionLogMeals.loggedAt));
+    
+    return meals;
   },
 
   async getNutritionLogsByDateRange(userId: string, startDate: string, endDate: string): Promise<import("@shared/schema").NutritionLog[]> {
