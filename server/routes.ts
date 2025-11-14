@@ -703,6 +703,42 @@ export function registerRoutes(app: Express) {
     }
   });
 
+  // Get meal plans for a specific date (simplified endpoint for Today's Overview)
+  app.get("/api/meal-plans/by-date/:date", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).user.dbUserId;
+      const { date } = req.params;
+
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: "Valid date (YYYY-MM-DD) is required" });
+      }
+
+      // Get all meal plans for the user and filter by date
+      const allMealPlans = await storage.getMealPlans(userId);
+      const dateMealPlans = allMealPlans.filter((mp: any) => {
+        const planDate = new Date(mp.scheduledFor).toISOString().split('T')[0];
+        return planDate === date;
+      });
+
+      res.json(dateMealPlans);
+    } catch (error) {
+      console.error("Error getting meal plans by date:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Nutrition Logs routes (MVP+ feature)
+  app.get("/api/nutrition-logs", isAuthenticated, async (req, res) => {
+    try {
+      // Stub for MVP - returns empty array for now
+      // TODO: Implement nutrition logging feature
+      res.json([]);
+    } catch (error) {
+      console.error("Error getting nutrition logs:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // AI Chat routes
   app.get("/api/chat/messages", isAuthenticated, async (req, res) => {
     try {
