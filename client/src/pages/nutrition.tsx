@@ -15,7 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import type { Recipe, NutritionLog, NutritionLogMeal } from "@shared/schema";
 
-type NutritionLogWithMeals = NutritionLog & { meals: NutritionLogMeal[] };
+type NutritionLogMealWithRecipe = NutritionLogMeal & { recipeName: string | null };
+type NutritionLogWithMeals = NutritionLog & { meals: NutritionLogMealWithRecipe[] };
 
 type WeeklySummary = {
   logs: NutritionLog[];
@@ -69,11 +70,14 @@ export default function NutritionPage() {
     queryKey: [`/api/nutrition/summary/weekly?endDate=${selectedDate}`],
   });
 
-  // Get recipes for the meal dialog
-  const { data: recipes, isLoading: isLoadingRecipes } = useQuery<Recipe[]>({
+  // Get recipes for the meal dialog - only local recipes that exist in database
+  const { data: allRecipes, isLoading: isLoadingRecipes } = useQuery<Recipe[]>({
     queryKey: ["/api/recipes"],
     enabled: isAddMealDialogOpen,
   });
+
+  // Filter to only recipes that have been saved to database (not just external API results)
+  const recipes = allRecipes?.filter(r => r.isSaved);
 
   // Add meal mutation
   const addMealMutation = useMutation({
@@ -81,10 +85,10 @@ export default function NutritionPage() {
       return await apiRequest("POST", `/api/nutrition/logs/${selectedDate}/meals`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (query) => 
-        query.queryKey[0]?.toString().startsWith('/api/nutrition/logs') ||
-        query.queryKey[0]?.toString().startsWith('/api/nutrition/summary/weekly')
-      });
+      queryClient.invalidateQueries({ predicate: (query) => {
+        const key = query.queryKey[0]?.toString();
+        return key ? (key.startsWith('/api/nutrition/logs') || key.startsWith('/api/nutrition/summary/weekly')) : false;
+      }});
       setIsAddMealDialogOpen(false);
       setSelectedRecipe("");
       setPortionSize("1");
