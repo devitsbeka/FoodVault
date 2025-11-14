@@ -1,0 +1,440 @@
+PRD-style requirements.
+This section will cover core pages (not all 45 yet) but in a fully structured PRD format so the pattern can be replicated across the entire system.
+
+If you'd like ALL 45 pages in PRD format, just confirm after reviewing this sample set.
+
+Below are PRDs for the foundational pages:
+
+Home Dashboard
+
+Daily Meal Plan
+
+Recipe Detail
+
+Cooking Mode
+
+My Kitchen
+
+Shopping List
+
+Learning Lesson
+
+Event Planner
+
+Nutrition Overview
+
+🧩 D — PRODUCT REQUIREMENTS DOCUMENTS (PRDs)
+📄 1. HOME DASHBOARD — PRD
+1.1 Purpose
+
+The Home Dashboard is the user’s personalized daily hub showing meal planning, suggested meals, inventory highlights, and ongoing learning.
+
+1.2 Primary Users
+
+Everyday cooks
+
+People managing nutrition
+
+Beginners learning new skills
+
+Hosts planning group meals
+
+1.3 User Goals
+
+See today’s meals
+
+Quickly navigate to planning, recipes, lessons
+
+Get suggestions for cooking
+
+Track kitchen inventory
+
+View progress in learning modules
+
+1.4 Functional Requirements
+Dashboard Header
+
+Show: greeting, date, time
+
+Dynamic personalized greeting based on time of day
+
+Calendar Strip
+
+Horizontal scrolling dates (±2 weeks)
+
+Each date displays:
+
+Day number
+
+Color indicators (meals planned, lessons, nutrition)
+
+My Plans Widget
+
+Shows upcoming personal meal plans
+
+Each plan card includes:
+
+Dish image
+
+Nutrition (e.g., sodium)
+
+Tap opens Daily Meal Plan
+
+My Kitchen Summary
+
+Displays:
+
+Number of fridge items
+
+Items low/expiring soon
+
+Link to full My Kitchen
+
+Suggested for You
+
+Personalized recipe recommendations based on:
+
+Diet preferences
+
+Past behavior
+
+Inventory availability
+
+Time of day
+
+Learning Module Card
+
+Shows next lesson in recommended course
+
+Tap → Lesson Video
+
+1.5 Success Metrics
+
+↑ Daily active users
+
+↑ Engagement with recipes
+
+↑ User retention
+
+↓ Bounce rate on Day 1
+
+📄 2. DAILY MEAL PLAN — PRD
+2.1 Purpose
+
+Allows users to plan meals for a selected day, manage events, view missing ingredients, and prepare meals.
+
+2.2 Functional Requirements
+
+General
+
+Date header with navigation
+
+Meal sections (Breakfast/Lunch/Dinner)
+
+Events (“Game Night”)
+
+Meal Cards
+
+Thumbnail
+
+Preview of dish and sides
+
+Tap → Recipe Detail
+
+Event Block
+
+Title
+
+Guest list
+
+Serving size
+
+Add/remove dishes
+
+Add dessert
+
+Missing ingredients preview
+
+Missing Ingredients Panel
+
+Auto-generated from inventory
+
+Display quantity needed
+
+Tap → full shopping list
+
+2.3 Edge Cases
+
+No inventory → show “Add Ingredients”
+
+No meals → CTA “Add Meal”
+
+📄 3. RECIPE DETAIL — PRD
+3.1 Purpose
+
+Central screen for cooking instructions, nutrition, steps, and inventory matching.
+
+3.2 Functional Requirements
+Header
+
+Recipe image
+
+Title
+
+Time/servings
+
+Save (heart) button
+
+Ingredients (smart inventory sync)
+
+Show required vs available
+
+Missing ingredients auto-highlighted
+
+Button “Add missing to shopping list”
+
+Nutrition
+
+Calories, macros, sodium
+
+Expandable full panel
+
+Steps
+
+Ordered step list
+
+Steps with icons or video snippets
+
+Primary Actions
+
+Start Cooking → Cooking Mode
+
+Add to Plan → Daily Meal Plan
+
+Favorite → Saved Recipes
+
+3.3 Performance Requirements
+
+Load under 500ms
+
+Offline mode: cached recipes
+
+📄 4. COOKING MODE — PRD
+4.1 Purpose
+
+Guided cooking experience with step-by-step instructions and timers.
+
+4.2 Functional Requirements
+Step View
+
+Large text + visuals
+
+Timer integration
+
+Optional short video clips per step
+
+Voice navigation (“Next step”, “Repeat”)
+
+Progress Tracking
+
+Step counter
+
+Auto-save progress
+
+Completion Flow
+
+Prompt nutritional logging
+
+Deduct ingredients from inventory
+
+📄 5. MY KITCHEN (INVENTORY) — PRD
+5.1 Purpose
+
+Manage real-world inventory to power missing ingredients, suggestions, and meal planning.
+
+5.2 Functional Requirements
+Inventory Sections
+
+Fridge
+
+Pantry
+
+Freezer
+
+Spices
+
+Ingredient Cards
+
+Item name
+
+Quantity
+
+Expiry
+
+Tap → Ingredient Detail
+
+Add Ingredient
+
+Search
+
+Barcode scan
+
+Image recognition
+
+Manual input
+
+Bulk Editing
+
+Adjust quantities
+
+Mark items as consumed
+
+5.3 Automations
+
+After cooking a planned meal → auto-deduct ingredients (user confirmation)
+
+After shopping → auto-add purchased items (user confirmation)
+
+📄 6. SHOPPING LIST — PRD
+6.1 Purpose
+
+Provide auto-generated shopping lists based on meal planning gaps.
+
+6.2 Functional Requirements
+Auto-Generated List
+
+Combine missing ingredients across the week
+
+Consolidate duplicates
+
+Suggested quantities
+
+List Editor
+
+Add/remove items
+
+Adjust units (g, kg, ml, cups)
+
+Categorize by aisle automatically
+
+Store Mode
+
+Full-screen checklist
+
+Large tappable checkmarks
+
+Auto-sync to inventory after completion
+
+Integrations
+
+Optional integrations (Instacart, Amazon Fresh)
+
+📄 7. LESSON VIDEO — PRD
+7.1 Purpose
+
+Deliver structured cooking lessons with progress tracking.
+
+7.2 Requirements
+Video Player
+
+Play/pause
+
+Fullscreen
+
+Progress tracking
+
+Lesson Components
+
+Title
+
+Duration
+
+Transcript
+
+Tools Needed
+
+“Practice Mode” button
+
+Completion Tracking
+
+Update course progress
+
+Unlock next lesson
+
+📄 8. EVENT MEAL PLANNER (“GAME NIGHT”) — PRD
+8.1 Purpose
+
+A dedicated interface for group meal events with multiple guests and dishes.
+
+8.2 Functional Requirements
+Event Details
+
+Name
+
+Date/time
+
+Guest list
+
+Cover image/theme
+
+Dish Management
+
+Add/remove dishes
+
+Assign main + sides
+
+Add dessert
+
+Guest Management
+
+Invite button
+
+View accepted/declined
+
+Contact info
+
+Shopping Sync
+
+Automatically adds ingredients to shopping list
+
+Split ingredients by guest (optional future feature)
+
+📄 9. NUTRITION OVERVIEW — PRD
+9.1 Purpose
+
+Provide week-by-week nutritional feedback tied to user goals.
+
+9.2 Functional Requirements
+Charts
+
+Weekly calories
+
+Sodium
+
+Macros
+
+Daily Breakdown
+
+Tap a day → meals + nutrition contribution
+
+Insights
+
+Recommendations based on trends
+
+Highlight “high sodium week” or “low protein day”
+
+Filters
+
+Calories
+
+Sodium
+
+Carbs/fat/protein
+
+🎯 D — PRDs COMPLETED (core pages)
+
+If you want, I can now generate PRDs for all remaining pages (up to 45).
+Just say:
+➡️ “Generate PRDs for ALL pages”
+or
+➡️ “Generate PRDs for the next set.”

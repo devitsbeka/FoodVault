@@ -1,0 +1,480 @@
+Below is a comprehensive, structured, end-to-end list of all pages/screens you would need for a complete, fully functional version of this app. I’ve grouped them by functional area so you can easily map them into the product architecture.
+
+These pages are specific, non-generic, and tailored to the flows and features revealed in the screenshot—not just a standard recipe app boilerplate.
+
+✅ 1. Onboarding & Account Setup
+
+These support first-time user setup, dietary profiling, and personalization.
+
+1.1 Welcome / Intro Carousel
+
+Explains app benefits (meal planning, cooking lessons, inventory).
+
+1.2 Account Creation / Login
+
+Email / password
+
+Social login
+
+Magic link
+
+1.3 Profile Setup
+
+Name
+
+Cooking experience level
+
+Household size
+
+1.4 Dietary & Health Preferences
+
+Sodium limits
+
+Allergies
+
+Preferences (vegan, pescatarian, etc.)
+
+1.5 Kitchen Setup Wizard
+
+Add pantry baseline
+
+Link smart fridge/sensors (if applicable)
+
+“What do you usually cook?” questions
+
+✅ 2. Home & Overview Pages
+
+These are the main app experience pages.
+
+2.1 Dashboard / Home (like screenshot)
+
+Shows:
+
+Greeting
+
+Date selector
+
+Today’s plan
+
+My Kitchen summary
+
+My Plans
+
+Lessons in progress
+
+Suggestions
+
+2.2 Notification Center
+
+Meal reminders, cooking lessons, ingredient alerts.
+
+✅ 3. Calendar & Meal Planning
+
+Everything related to selecting days, creating plans, and adding meals.
+
+3.1 Calendar Timeline Page
+
+Full-page date selector with color-coded indicators.
+
+3.2 Daily Meal Plan Page
+
+The expanded version of what we see in the screenshot.
+Includes:
+
+Breakfast, lunch, dinner sections
+
+Events (e.g., “Game Night”)
+
+Guests
+
+Ingredients needed
+
+Nutritional summary
+
+Add-ons (desserts, sides)
+
+3.3 Event Meal Planning Page
+
+Create or edit events:
+
+Name (Game Night, Friends Dinner)
+
+Invite guests
+
+Choose number of servings
+
+Assign dishes
+
+3.4 Meal Plan Templates Page
+
+Preset plans (e.g., Low Sodium Week, Family Plan, 30-Minute Meals).
+
+✅ 4. Recipes & Cooking
+
+Where users discover, view, and prepare dishes.
+
+4.1 Recipe Discovery / Explore
+
+Search + browse:
+
+Categories
+
+Time
+
+Skill level
+
+Ingredients you already have
+
+Dietary filters
+
+4.2 Recipe Detail Page
+
+Includes:
+
+Photos
+
+Nutrition
+
+Steps
+
+Ingredients (synced to inventory)
+
+“Add to plan”
+
+“Start cooking” button
+
+Serving size adjuster
+
+Related dishes
+
+4.3 Cooking Mode (Step-by-Step)
+
+Immersive mode with:
+
+Timer
+
+Voice or gesture navigation
+
+Video clips in steps
+
+Progress bar
+
+4.4 Saved Recipes / Favorites Page
+✅ 5. Learning & Courses
+
+Since there's a structured cooking class system.
+
+5.1 Learning Hub
+
+Categories:
+
+Knife skills
+
+Baking
+
+Pasta making
+
+Meal prep
+
+5.2 Course Overview Page
+
+Shows lessons, progress, upcoming modules.
+
+5.3 Lesson Video Page
+
+Single lesson view with:
+
+Video
+
+Practice mode
+
+Required tools
+
+Exercises
+
+Quiz (optional)
+
+5.4 Practice Mode Page
+
+Real-time prompts + interactive guidance.
+
+✅ 6. Inventory / Kitchen Management
+
+This is one of the core features shown.
+
+6.1 My Kitchen (Full Inventory)
+
+Breakdown:
+
+Fridge
+
+Pantry
+
+Freezer
+
+Spices
+
+6.2 Ingredient Detail View
+
+Per-item view:
+
+Amount
+
+Expiry
+
+Nutritional data
+
+Recipes using this ingredient
+
+6.3 Add Ingredient Page
+
+Manual entry or scanning:
+
+Barcode scanner
+
+“Scan fridge shelf” (vision-based option)
+
+Search ingredient database
+
+6.4 Inventory Auto-Sync Settings
+
+For IoT devices / smart fridges (optional).
+
+✅ 7. Shopping & Missing Ingredients
+
+Supports creation and management of shopping lists.
+
+7.1 Auto-Generated Shopping List
+
+List created from missing ingredients from chosen recipes.
+
+7.2 Shopping List Editor Page
+
+Allows:
+
+Add/remove items
+
+Quantity adjustment
+
+Group by store aisle
+
+Mark as purchased
+
+7.3 Store Mode
+
+Mobile-friendly checklist for in-store shopping.
+
+7.4 Store Preferences / Integrations
+
+If app supports grocery delivery:
+
+Connect Instacart, Amazon Fresh, etc.
+
+✅ 8. Nutrition & Health Tracking
+
+Based on the sodium indicators shown.
+
+8.1 Nutrition Overview Page
+
+Tracks:
+
+Sodium
+
+Calories
+
+Macros
+
+Micronutrients
+
+8.2 Daily Nutrition Breakdown
+
+Graph of today’s meals.
+
+8.3 Weekly Health Summary
+
+Insights + recommendations.
+
+✅ 9. Social & Collaboration
+
+Since invites + shared meals exist.
+
+9.1 Friends & Family List
+
+Your cooking group.
+
+9.2 Meal Event Invitations Page
+
+RSVPs, shared shopping lists.
+
+9.3 Shared Meal Plan Page
+
+Co-created plans with other users.
+
+✅ 10. Search
+
+Deep search flows.
+
+10.1 Global Search Page
+
+Search across:
+
+Recipes
+
+Lessons
+
+Ingredients
+
+Events
+
+Plans
+
+10.2 Search Results Page
+
+Filtered results with tabs.
+
+✅ 11. Settings & Personalization
+11.1 Profile & Preferences Page
+
+Update:
+
+Name
+
+Dietary restrictions
+
+Cooking skill level
+
+11.2 App Settings
+
+Notifications
+
+Units (imperial/metric)
+
+Language
+
+Theme
+
+11.3 Subscription / Billing Page
+
+If offering premium courses.
+
+11.4 Privacy & Permissions
+
+Camera, microphone, smart devices.
+
+⭐ FULL LIST SUMMARY (Compact)
+
+Total Pages: 45 pages
+
+Onboarding
+
+Welcome/Intro
+
+Login
+
+Profile Setup
+
+Dietary Preferences
+
+Kitchen Setup
+
+Overview
+
+Home Dashboard
+
+Notification Center
+
+Calendar & Planning
+
+Calendar
+
+Daily Plan
+
+Event Planner
+
+Meal Templates
+
+Recipes
+
+Explore Recipes
+
+Recipe Detail
+
+Cooking Mode
+
+Saved Recipes
+
+Learning
+
+Learning Hub
+
+Course Overview
+
+Lesson Video
+
+Practice Mode
+
+Inventory
+
+My Kitchen
+
+Ingredient Detail
+
+Add Ingredient
+
+Smart Sync Settings
+
+Shopping
+
+Auto Shopping List
+
+Shopping Editor
+
+Store Mode
+
+Store Integrations
+
+Nutrition
+
+Nutrition Overview
+
+Daily Nutrition
+
+Weekly Nutrition
+
+Social
+
+Friends List
+
+Invitations
+
+Shared Plan
+
+Search
+
+Global Search
+
+Search Results
+
+Settings
+
+Profile
+
+App Settings
+
+Billing
+
+Privacy
+
+Additional utility pages
+
+About
+
+Feedback / Support
+
+Terms / Policy
+
+System Messages / Empty States
+
+Error Page
+
+Offline Mode Page

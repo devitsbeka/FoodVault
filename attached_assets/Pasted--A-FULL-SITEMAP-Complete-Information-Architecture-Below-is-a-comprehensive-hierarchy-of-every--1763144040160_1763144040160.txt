@@ -1,0 +1,356 @@
+🌐 A. FULL SITEMAP (Complete Information Architecture)
+
+Below is a comprehensive hierarchy of every page your app needs based on your flows, with clear parent-child structure and grouping.
+This is structured so it can be directly converted into UX flows, navigation logic, or documentation.
+
+🏠 1. HOME & CORE NAVIGATION
+1.1 Home Dashboard (Overview)
+
+Greeting / Time / Today block
+
+Calendar strip
+
+My Plans
+
+My Kitchen summary
+
+Suggested meals
+
+Ongoing lessons
+
+Search bar
+
+1.2 Notification Center
+
+Meal reminders
+
+Inventory alerts
+
+Learning progress
+
+Shared meal invites
+
+📅 2. MEAL PLANNING
+2.1 Calendar Overview
+
+Month selector
+
+Meal indicators
+
+Nutrition dots
+
+Today shortcut
+
+2.2 Daily Meal Plan
+
+Meals for the day
+
+Event blocks (e.g., Game Night)
+
+Invite guests
+
+Missing ingredients
+
+Add dish / dessert
+
+Notes section
+
+2.3 Event Meal Planner
+
+Event details
+
+Invite list
+
+Serving count
+
+Recipes assigned
+
+Shopping requirements
+
+2.4 Plan Templates
+
+Low Sodium Week
+
+Budget Plan
+
+Quick Meals
+
+Custom Templates
+
+🍽️ 3. RECIPES
+3.1 Explore Recipes
+
+Categories
+
+Trending
+
+Filters (diet, time, difficulty, ingredients you have)
+
+3.2 Search Results
+
+Tabs: Recipes / Ingredients / Lessons
+
+3.3 Recipe Detail
+
+Hero image
+
+Nutrition
+
+Ingredients (synced to inventory)
+
+Instructions
+
+Related dishes
+
+Save / Add to plan / Start cooking
+
+3.4 Cooking Mode
+
+Step-by-step
+
+Timers
+
+Video step previews
+
+Voice navigation
+
+Progress indicator
+
+3.5 Saved Recipes
+
+Favorites
+
+Recently viewed
+
+Collections
+
+🎓 4. LEARNING (COOKING SKILLS)
+4.1 Learning Hub
+
+Categories: Knife skills, sauces, pasta, fundamentals
+
+Recommended lessons
+
+4.2 Course Overview
+
+Progress
+
+Lesson list
+
+Required tools
+
+4.3 Lesson Video
+
+Play video
+
+Transcript
+
+Recipe tie-ins
+
+Practice mode
+
+4.4 Practice Mode
+
+Real-time prompts
+
+Step overlays
+
+Scoring/feedback (optional)
+
+🧺 5. INVENTORY (MY KITCHEN)
+5.1 Kitchen Overview
+
+Fridge
+
+Pantry
+
+Freezer
+
+Spices
+
+Quick add
+
+5.2 Ingredient Detail
+
+Amount
+
+Expiry
+
+Nutrition
+
+Recipes using it
+
+Adjust quantities
+
+5.3 Add Ingredient
+
+Manual entry
+
+Barcode scan
+
+Image detection
+
+Category selector
+
+5.4 Smart Sync Settings
+
+Connect devices
+
+Auto-update inventory
+
+🛒 6. SHOPPING
+6.1 Auto-Generated Shopping List
+
+From meal plans
+
+Missing ingredients
+
+6.2 Shopping List Editor
+
+Add/remove items
+
+Adjust quantities
+
+Categorize by aisle
+
+6.3 Store Mode
+
+Tap-to-check items
+
+Compact mobile mode
+
+6.4 Store Integrations
+
+Amazon Fresh
+
+Instacart
+
+Local stores
+
+🥗 7. NUTRITION
+7.1 Nutrition Overview
+
+Weekly calories
+
+Macros
+
+Sodium
+
+Patterns/trends
+
+7.2 Daily Nutrition Detail
+
+Total nutrients
+
+Meals contributing
+
+7.3 Weekly Nutrition Summary
+
+Insights
+
+Recommendations
+
+👥 8. SOCIAL & COLLABORATION
+8.1 Friends / Contacts
+
+Add contact
+
+Invite by link
+
+Existing groups
+
+8.2 Event Invitations
+
+Accept/decline
+
+View event details
+
+8.3 Shared Meal Plans
+
+Collaboratively built meal plans
+
+🔍 9. SEARCH
+9.1 Universal Search Page
+
+Query bar
+
+Suggestions
+
+9.2 Search Results
+
+Recipes
+
+Ingredients
+
+Lessons
+
+Events
+
+⚙️ 10. SETTINGS & ACCOUNT
+10.1 Profile Page
+
+Name
+
+Cooking level
+
+Preferences
+
+10.2 Dietary & Health Settings
+
+Allergies
+
+Sodium goals
+
+Dietary choices
+
+10.3 App Settings
+
+Notifications
+
+Language
+
+Units
+
+Theme
+
+10.4 Subscription & Billing
+
+Plans
+
+Payment
+
+History
+
+10.5 Privacy & Permissions
+
+Camera
+
+Microphone
+
+Data settings
+
+10.6 Support & Feedback
+
+Contact
+
+Bug report
+
+10.7 Legal Pages
+
+Terms
+
+Privacy Policy
+
+❗ 11. SYSTEM & UTILITY PAGES
+11.1 Empty States
+
+e.g., no recipes saved, no inventory.
+
+11.2 Loading / Skeleton Screens
+11.3 Error State Page
+
+Offline
+
+Server issues
+
+11.4 Onboarding Wizard Completion Screen

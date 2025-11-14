@@ -1,0 +1,451 @@
+B: key user flows ✅
+Here are the core end-to-end flows that make the app actually work as shown in your UI.
+I’ll keep them tight but complete so you can turn them into UX flows/user stories quickly.
+
+1. New User Onboarding & Personalization
+Goal: Get a new user to a personalized dashboard with reasonable defaults.
+
+
+Open app → Welcome / Intro
+
+
+Tap “Get Started” → Account Creation/Login
+
+
+Create account (email/password or social) → Profile Setup
+
+
+Enter name, household size, cooking level → Dietary & Health Preferences
+
+
+Choose diet, allergies, sodium preference, calories goal → Kitchen Setup Wizard
+
+
+Add a few staple ingredients (or skip) → confirm.
+
+
+Land on Home Dashboard with:
+
+
+Recommended recipes
+
+
+Beginner course suggested
+
+
+Simple first-week meal plan template.
+
+
+
+
+
+2. Set Up / Maintain Kitchen Inventory
+Goal: Keep “My Kitchen” accurate so missing ingredients & suggestions work.
+2.1 Initial inventory setup
+
+
+From Home → tap “My Kitchen” summary → Kitchen Overview.
+
+
+Tap “Add items” → Add Ingredient.
+
+
+Choose method:
+
+
+Scan barcode → auto-fill name, category, default quantity.
+
+
+Search by name → select result → set quantity, storage (fridge/pantry).
+
+
+
+
+Save item → returns to Kitchen Overview, list updates.
+
+
+Repeat or finish.
+
+
+2.2 Updating after cooking
+
+
+After finishing a recipe in Cooking Mode, user taps “Mark as cooked”.
+
+
+System suggests ingredient usage (based on recipe & serving size).
+
+
+User confirms or adjusts quantities.
+
+
+Inventory auto-updated in Kitchen Overview.
+
+
+
+3. Plan a Dinner Event (e.g., “Game Night”) for a Specific Date
+Goal: Create the exact scenario from the screenshot.
+
+
+From Home or Calendar Overview, select date (e.g., Nov 12) → Daily Meal Plan.
+
+
+Tap “Add event” → Event Meal Planner.
+
+
+Enter event name (“Game Night”), time, expected guests count.
+
+
+Tap “Add dishes” → opens Explore Recipes.
+
+
+Filter by:
+
+
+Difficulty, time, dietary, ingredients on hand.
+
+
+
+
+Select main dish (Pasta Alfredo) and side (Carrot Purée) → confirm.
+
+
+App returns to Event Meal Planner showing:
+
+
+Dishes
+
+
+Serving size
+
+
+
+
+Tap “Invite guests” → Friends / Contacts.
+
+
+Pick contacts (MK, JK) → send invites.
+
+
+Save → returns to Daily Meal Plan:
+
+
+“Game Night” card visible
+
+
+Dishes thumbnails visible
+
+
+“Dinner for 2 persons” (or more) label.
+
+
+
+
+
+4. See Missing Ingredients & Generate Shopping List
+Goal: Turn planned meals into a concrete shopping list.
+
+
+In Daily Meal Plan (Game Night already added):
+
+
+App computes required ingredients vs. Kitchen Inventory.
+
+
+
+
+“What ingredient’s missing” strip appears with carrots, parsley, pasta, etc.
+
+
+User taps “View List →” → Auto-Generated Shopping List.
+
+
+See list grouped by recipe or by ingredient.
+
+
+Tap “Add to Shopping List” to confirm all or selected items → Shopping List Editor.
+
+
+(Optional) Add extra items manually.
+
+
+(Optional) Tap “Order Online”:
+
+
+Goes to Store Integrations → choose provider → hand off.
+
+
+
+
+Or later, tap “Store Mode” when at store to use checklist.
+
+
+
+5. Use Shopping List in Store & Update Inventory
+Goal: Close the loop so future planning is accurate.
+
+
+At store, open app → tap Shopping icon → Shopping List Editor.
+
+
+Tap “Store Mode” → compact checklist view.
+
+
+As items are purchased, check them off.
+
+
+Upon leaving Store Mode, app prompts:
+
+
+“Add purchased items to My Kitchen?”
+
+
+
+
+Confirm → items & quantities are added/updated in Kitchen Overview.
+
+
+
+6. Cook a Planned Meal from the Dashboard
+Goal: Go from scheduled dish → step-by-step cooking experience.
+
+
+From Home Dashboard, under Meal Planning / Today:
+
+
+Tap dish (e.g., Pasta Alfredo) → Recipe Detail.
+
+
+
+
+Review ingredients, confirm you have everything (missing items are flagged).
+
+
+Tap “Start Cooking” → Cooking Mode.
+
+
+Follow step-by-step instructions:
+
+
+Next/previous step
+
+
+Timers
+
+
+Optional mini videos clips.
+
+
+
+
+At end, tap “Finish & Log Meal”:
+
+
+Offers to log nutrition → updates Daily Nutrition Detail.
+
+
+Offers to deduct ingredients from Inventory (Flow 2.2).
+
+
+
+
+
+7. Start & Continue a Cooking Lesson (e.g., “Cutting Skills – Lesson 3”)
+Goal: Use the Learning module as shown in right panel.
+
+
+From Home, tap “Cutting Skills – Lesson 3” card → Lesson Video.
+
+
+Press play; watch brief video (3:29).
+
+
+Optionally tap “Practice” → Practice Mode:
+
+
+Step prompts (e.g., hand positions).
+
+
+
+
+After completion:
+
+
+Progress saved in Course Overview.
+
+
+Badge or completion indicator appears.
+
+
+
+
+Home card updates to next lesson or “Resume”.
+
+
+
+8. Use a Suggested Dish (“Suggested for You”) in a Plan
+Goal: Convert recommendation into part of a plan.
+
+
+From Home, in “Suggested for You,” tap the Salmon with Mashed Potatoes and Asparagus card → Recipe Detail.
+
+
+Tap “Add to plan”.
+
+
+Modal: choose
+
+
+Date
+
+
+Meal time (lunch/dinner)
+
+
+Event or normal day.
+
+
+
+
+Confirm → added to Daily Meal Plan for chosen date.
+
+
+System recalculates:
+
+
+Nutrition for that day/week.
+
+
+Missing Ingredients & Shopping List.
+
+
+
+
+
+9. Weekly Nutritional Review
+Goal: Close feedback loop for health-conscious users.
+
+
+From Home, tap nutrition summary widget → Nutrition Overview.
+
+
+See weekly charts (calories, sodium, macros).
+
+
+Tap on a specific day bar → Daily Nutrition Detail:
+
+
+List of meals + contribution to totals.
+
+
+
+
+Optional:
+
+
+Tap meal → go to Recipe Detail for breakdown.
+
+
+
+
+From Nutrition Overview, tap “Suggestions”:
+
+
+Recommendations to adjust future plans (e.g., lower sodium suggestions) → linking back to Plan Templates or Explore Recipes with filters.
+
+
+
+
+
+10. Accept a Friend’s Meal Invite & See Shared Plan
+Goal: Social scenario tied to events.
+
+
+Receive notification → tap → Event Invitation page.
+
+
+See details (host, date, dishes, guest list).
+
+
+Tap Accept or Decline.
+
+
+If accepted:
+
+
+Event appears in your Calendar Overview & Daily Meal Plan.
+
+
+Option to “Bring a dish” → opens Explore Recipes filtered by host’s preferences.
+
+
+
+
+Any dish you add uses your own Inventory / Shopping List.
+
+
+
+11. Global Search Flow
+Goal: Find anything from one place.
+
+
+From Home, tap bottom search bar (“What are you craving for?”) → Universal Search.
+
+
+Type query; see suggested results.
+
+
+Press enter → Search Results with tabs:
+
+
+Recipes / Ingredients / Lessons / Events.
+
+
+
+
+Tap result:
+
+
+Recipe → Recipe Detail
+
+
+Lesson → Lesson Video
+
+
+Ingredient → Ingredient Detail
+
+
+Event → Event Planner / Daily Plan.
+
+
+
+
+
+12. Adjust Dietary Preferences & See Impact
+Goal: Personalization and its downstream effects.
+
+
+From Home → avatar menu → Profile → Dietary & Health Settings.
+
+
+Adjust sodium max, calorie targets, or restrictions.
+
+
+Save → app:
+
+
+Recalculates upcoming meal plans & nutrition projections.
+
+
+Updates Suggested for You on Home.
+
+
+May flag certain planned meals as “over limit” and suggest alternatives.
+
+
+
+
+
+That’s B (User Flows) done.
+Next in your sequence is D → PRD-style requirements per page, then E → wireframe descriptions, then F → component library outline.
+If you’re okay with this level of detail, I’ll move straight into D next and start turning these flows/pages into structured requirements.
