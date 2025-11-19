@@ -92,7 +92,23 @@ export async function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  const config = await getOidcConfig();
+  let config;
+  try {
+    config = await getOidcConfig();
+  } catch (error) {
+    console.warn("Failed to initialize OIDC configuration - authentication will be disabled:", error);
+    // In local development without Replit OIDC, set up a minimal auth that always fails
+    app.get("/api/login", (req, res) => {
+      res.status(503).json({ message: "Authentication not available in local development mode" });
+    });
+    app.get("/api/callback", (req, res) => {
+      res.status(503).json({ message: "Authentication not available in local development mode" });
+    });
+    app.get("/api/logout", (req, res) => {
+      res.redirect("/");
+    });
+    return;
+  }
 
   const verify: VerifyFunction = async (
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
