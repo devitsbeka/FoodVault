@@ -3,12 +3,18 @@ import OpenAI from "openai";
 
 // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
 // This is using Replit's AI Integrations service, which provides OpenAI-compatible API access without requiring your own OpenAI API key.
-const openai = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
-});
+// Only initialize if API key is provided (optional for local development)
+const openai = (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL && process.env.AI_INTEGRATIONS_OPENAI_API_KEY)
+  ? new OpenAI({
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+    })
+  : null;
 
 export async function getChatCompletion(messages: Array<{ role: string; content: string }>) {
+  if (!openai) {
+    return "AI chat is not available. Please configure AI_INTEGRATIONS_OPENAI_API_KEY for AI features.";
+  }
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
@@ -36,6 +42,9 @@ export async function getProductRecommendations(
   itemType: string,
   itemName: string
 ): Promise<ProductRecommendation[]> {
+  if (!openai) {
+    return []; // Return empty array if OpenAI not configured
+  }
   try {
     const prompt = `You are a kitchen equipment expert. Recommend the 5 best ${itemName} products available in 2025.
 
@@ -89,6 +98,9 @@ export async function getProductImageUrl(
   brand?: string,
   model?: string
 ): Promise<string | null> {
+  if (!openai) {
+    return null; // Return null if OpenAI not configured
+  }
   try {
     const productQuery = brand && model
       ? `${brand} ${model} ${itemName}`

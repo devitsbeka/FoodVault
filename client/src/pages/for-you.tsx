@@ -84,7 +84,7 @@ type MealRSVP = {
 };
 
 function StoriesBar() {
-  const { data: stories = [], isLoading } = useQuery<FeaturedRecipe[]>({
+  const { data: stories, isLoading } = useQuery<FeaturedRecipe[]>({
     queryKey: ["/api/feed/stories"],
     queryFn: async () => {
       const res = await fetch("/api/feed/stories?limit=20", { credentials: "include" });
@@ -106,10 +106,12 @@ function StoriesBar() {
     );
   }
 
+  const storiesList = stories || [];
+
   return (
     <div className="w-full overflow-x-auto">
       <div className="flex gap-4 p-4">
-        {stories.map((story) => (
+        {storiesList.map((story) => (
           <Link
             key={story.id}
             href={`/recipes/${story.id}`}
@@ -377,7 +379,7 @@ function FridgeStatusWidget() {
 }
 
 function UpcomingDinnersWidget() {
-  const { data: dinners = [], isLoading } = useQuery<UpcomingDinner[]>({
+  const { data: dinners, isLoading } = useQuery<UpcomingDinner[]>({
     queryKey: ["/api/feed/upcoming-dinners"],
   });
 
@@ -385,7 +387,9 @@ function UpcomingDinnersWidget() {
     return <div className="h-32 bg-muted animate-pulse rounded-lg" />;
   }
 
-  if (dinners.length === 0) {
+  const dinnersList = dinners || [];
+
+  if (dinnersList.length === 0) {
     return (
       <Card className="p-4" data-testid="upcoming-dinners-widget">
         <div className="flex items-center gap-3 mb-3">
@@ -404,7 +408,7 @@ function UpcomingDinnersWidget() {
         <p className="font-semibold">Upcoming Dinners</p>
       </div>
       <div className="space-y-3">
-        {dinners.map((dinner) => (
+        {dinnersList.map((dinner) => (
           <div key={dinner.id} className="flex items-center gap-3" data-testid={`dinner-${dinner.id}`}>
             {dinner.recipeImage ? (
               <img
@@ -443,7 +447,7 @@ function UpcomingDinnersWidget() {
 }
 
 function FamilyStatusWidget() {
-  const { data: members = [], isLoading } = useQuery<FamilyMember[]>({
+  const { data: members, isLoading } = useQuery<FamilyMember[]>({
     queryKey: ["/api/feed/family-status"],
   });
 
@@ -451,7 +455,9 @@ function FamilyStatusWidget() {
     return <div className="h-24 bg-muted animate-pulse rounded-lg" />;
   }
 
-  if (members.length === 0) {
+  const membersList = members || [];
+
+  if (membersList.length === 0) {
     return null;
   }
 
@@ -462,7 +468,7 @@ function FamilyStatusWidget() {
         <p className="font-semibold">Family</p>
       </div>
       <div className="space-y-2">
-        {members.map((member) => (
+        {membersList.map((member) => (
           <div key={member.userId} className="flex items-center gap-3" data-testid={`family-member-${member.userId}`}>
             <div className="relative">
               <Avatar className="w-8 h-8">
@@ -488,7 +494,7 @@ function FamilyStatusWidget() {
 }
 
 function MealRSVPsWidget() {
-  const { data: meals = [], isLoading } = useQuery<MealRSVP[]>({
+  const { data: meals, isLoading } = useQuery<MealRSVP[]>({
     queryKey: ["/api/feed/meal-rsvps"],
   });
 
@@ -505,7 +511,9 @@ function MealRSVPsWidget() {
     return <div className="h-32 bg-muted animate-pulse rounded-lg" />;
   }
 
-  if (meals.length === 0) {
+  const mealsList = meals || [];
+
+  if (mealsList.length === 0) {
     return null;
   }
 
@@ -516,7 +524,7 @@ function MealRSVPsWidget() {
         <p className="font-semibold">RSVP</p>
       </div>
       <div className="space-y-4">
-        {meals.map((meal) => (
+        {mealsList.map((meal) => (
           <div key={meal.mealPlanId} className="space-y-2" data-testid={`rsvp-meal-${meal.mealPlanId}`}>
             <div>
               <p className="text-sm font-medium">{meal.recipeName}</p>
@@ -584,7 +592,7 @@ export default function ForYouPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   
   // Fetch mixed feed of polls and recipes
-  const { data: feedPosts = [], isLoading: feedLoading } = useQuery<FeedPost[]>({
+  const { data: feedPosts, isLoading: feedLoading } = useQuery<FeedPost[]>({
     queryKey: ["/api/feed/posts"],
     queryFn: async () => {
       const res = await fetch("/api/feed/posts?limit=15", { credentials: "include" });
@@ -592,6 +600,8 @@ export default function ForYouPage() {
       return res.json();
     },
   });
+
+  const feedPostsList = feedPosts || [];
 
   const handlePollAnswer = (pollId: string) => {
     setAnsweredPolls(prev => new Set([...Array.from(prev), pollId]));
@@ -647,8 +657,8 @@ export default function ForYouPage() {
                 <div className="h-64 bg-muted animate-pulse rounded-lg" />
                 <div className="h-96 bg-muted animate-pulse rounded-lg" />
               </>
-            ) : feedPosts.length > 0 ? (
-              feedPosts.map((post, index) => {
+            ) : feedPostsList.length > 0 ? (
+              feedPostsList.map((post, index) => {
                 if (post.type === 'poll') {
                   const poll = post.data as PollQuestion;
                   if (answeredPolls.has(poll.id)) return null;
