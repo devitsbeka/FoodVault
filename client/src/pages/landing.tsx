@@ -28,18 +28,16 @@ export default function Landing() {
               size="lg" 
               className="min-h-12 px-8 text-base font-semibold"
               data-testid="button-get-started"
-              asChild
             >
-              <a href="/api/login">Get Started</a>
+              Get Started
             </Button>
             <Button 
               variant="outline" 
               size="lg" 
               className="min-h-12 px-8 text-base font-semibold"
               data-testid="button-sign-in"
-              asChild
             >
-              <a href="/api/login">Sign In</a>
+              Sign In
             </Button>
           </div>
         </div>
@@ -91,9 +89,8 @@ export default function Landing() {
             size="lg" 
             className="min-h-12 px-8"
             data-testid="button-cta-get-started"
-            asChild
           >
-            <a href="/api/login">Start Free Today</a>
+            Start Free Today
           </Button>
         </div>
       </div>

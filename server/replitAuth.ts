@@ -21,21 +21,41 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  
+  // Use memory store if DATABASE_URL is not available (for frontend-only mode)
+  let sessionStore: session.Store;
+  if (process.env.DATABASE_URL) {
+    try {
   const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
+      sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
     createTableIfMissing: false,
     ttl: sessionTtl,
     tableName: "sessions",
   });
+    } catch (error) {
+      console.warn('Failed to create PostgreSQL session store, using memory store:', error instanceof Error ? error.message : String(error));
+      const MemoryStore = require('memorystore')(session);
+      sessionStore = new MemoryStore({
+        checkPeriod: 86400000, // prune expired entries every 24h
+      });
+    }
+  } else {
+    // Use memory store when DATABASE_URL is not set
+    const MemoryStore = require('memorystore')(session);
+    sessionStore = new MemoryStore({
+      checkPeriod: 86400000, // prune expired entries every 24h
+    });
+  }
+  
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET || 'dev-secret-change-in-production',
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: sessionTtl,
     },
   });
@@ -91,6 +111,63 @@ export async function setupAuth(app: Express) {
   app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Local development bypass - create a mock user if ENABLE_LOCAL_AUTH is set
+  if (process.env.ENABLE_LOCAL_AUTH === "true") {
+    // Create or get a local dev user (only if DB is available)
+    try {
+    const localDevUserId = "local-dev-user";
+    const localDevUser = await storage.getUserById(localDevUserId).catch(() => null);
+    if (!localDevUser) {
+      await storage.upsertUser({
+        id: localDevUserId,
+        email: "dev@localhost",
+        firstName: "Local",
+        lastName: "Developer",
+        }).catch((err) => {
+          console.warn('Could not create local dev user (DB may be unavailable):', err.message);
+      });
+      }
+    } catch (err) {
+      console.warn('Local auth setup skipped (DB unavailable):', err instanceof Error ? err.message : String(err));
+    }
+
+    // Middleware to auto-authenticate in local dev - must run before routes
+    app.use(async (req, res, next) => {
+      // Always authenticate for local dev
+      const user: any = {
+        dbUserId: localDevUserId,
+        expires_at: Math.floor(Date.now() / 1000) + 86400, // 24 hours
+      };
+      
+      // If user is already authenticated, continue
+      if (req.isAuthenticated() && (req.user as any)?.dbUserId === localDevUserId) {
+        return next();
+      }
+      
+      // Set user directly on request for immediate use
+      (req as any).user = user;
+      
+      // Override isAuthenticated to return true for local dev
+      (req as any).isAuthenticated = () => true;
+      
+      // Login via passport for session persistence (async)
+      if (!req.session?.passport?.user) {
+        req.login(user, (err) => {
+          if (err) {
+            console.error("[Local Auth] Login error:", err);
+          }
+          next();
+        });
+      } else {
+        next();
+      }
+    });
+
+    passport.serializeUser((user: Express.User, cb) => cb(null, user));
+    passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+    return; // Skip Replit auth setup
+  }
 
   const config = await getOidcConfig();
 
